@@ -1,4 +1,5 @@
 // 本文件驱动目标工作台，定期读取 SQLite 状态并提供创建、问答、暂停和日志查询交互。
+import { installPromptPreviews, promptLink } from './prompt-preview.js';
 import { ProjectsPanel } from './projects.js';
 import { SetupFlow } from './setup.js';
 import { OfficeView } from './office-view.js';
@@ -28,6 +29,7 @@ const panels = new ProjectsPanel({ api, selectProject, selectGoal, refresh, toas
 async function selectGoal(id) { selectedGoal = id; historyMode = false; eventProject = ''; questionsKey = ''; await refresh(); }
 const god = new GodPanel({ api, toast });
 const employees = new EmployeeManager({ api, refresh, toast });
+installPromptPreviews({ api, getProject: () => project, employees, setup });
 
 // showEmployeeRecords 仅通过负责人打开项目档案，普通员工保留个人信息。
 function showEmployeeRecords(actor) {
@@ -93,7 +95,7 @@ function renderQuestions() {
   if (questionsKey === key) return;
   questionsKey = key;
   $('#question-panel').hidden = !pending.length;
-  $('#question-panel').innerHTML = pending.length ? `<h2>需要你补充信息</h2><p>回答后会自动继续，已有进度和原目标会保留。</p><form id="answer-form">${pending.map((question, index) => `<label>${index + 1}. ${escape(question.prompt)}<textarea name="${question.id}" required maxlength="10000" rows="2" placeholder="填写回答"></textarea></label>`).join('')}<button class="primary" type="submit">提交回答并继续</button></form>` : '';
+  $('#question-panel').innerHTML = pending.length ? `<h2>需要你补充信息</h2><p>回答后会自动继续，已有进度和原目标会保留。</p><form id="answer-form">${pending.map((question, index) => `<label>${index + 1}. ${escape(question.prompt)}<textarea name="${question.id}" required maxlength="10000" rows="2" placeholder="填写回答"></textarea></label>`).join('')}<button class="primary" type="submit">提交回答并继续</button>${promptLink('answers')}</form>` : '';
 }
 
 // renderProject 更新任务与证据区域，保留用户打开的测试详情。
@@ -121,7 +123,7 @@ function renderProject() {
   if ($('#plan-preview').hidden && $('#question-panel').hidden && $('#attention-dialog').open) closePanel('attention-dialog');
   $('#task-count').textContent = project.tasks.length ? `${project.tasks.filter((task) => task.status === 'done').length}/${project.tasks.length}` : '';
   const openedTasks = new Set([...document.querySelectorAll('#task-list details[open]')].map((item) => item.dataset.task));
-  const taskCards = project.tasks.map((task, index) => `<article class="task-item"><span class="task-marker ${task.status}">${task.status === 'done' ? '✓' : task.status === 'running' ? '›' : index + 1}</span><div class="task-content"><div class="task-heading"><h3>${escape(task.title)}</h3>${badge(task.status)}</div><p>${escape(task.description)}</p><div class="task-meta"><span>执行员工：${escape(project.settings.employees?.find(employee => employee.id === task.assignee)?.name || task.assignee || '等待负责人分配')}</span><span>${task.depends_on?.length || 0} 项前置任务</span><span>${task.check_ids.length} 项验收</span>${task.attempts ? `<span>已执行 ${task.attempts} 轮</span>` : ''}</div>${task.result ? `<details data-task="${task.id}" ${openedTasks.has(task.id) ? 'open' : ''}><summary>最近执行结果</summary><p>${escape(task.result)}</p></details>` : ''}</div></article>`);
+  const taskCards = project.tasks.map((task, index) => `<article class="task-item"><span class="task-marker ${task.status}">${task.status === 'done' ? '✓' : task.status === 'running' ? '›' : index + 1}</span><div class="task-content"><div class="task-heading"><h3>${escape(task.title)}</h3>${badge(task.status)}</div><p>${escape(task.description)}</p><div class="task-meta"><span>执行员工：${escape(project.settings.employees?.find(employee => employee.id === task.assignee)?.name || task.assignee || '等待负责人分配')}</span><span>${task.depends_on?.length || 0} 项前置任务</span><span>${task.check_ids.length} 项验收</span>${promptLink(task.assignee ? 'developer' : 'coordinator', `data-task-id="${escape(task.id)}"`)}${task.attempts ? `<span>已执行 ${task.attempts} 轮</span>` : ''}</div>${task.result ? `<details data-task="${task.id}" ${openedTasks.has(task.id) ? 'open' : ''}><summary>最近执行结果</summary><p>${escape(task.result)}</p></details>` : ''}</div></article>`);
   $('#task-list').innerHTML = project.tasks.length ? `<div class="task-board">${[['pending','待办'],['running','进行中'],['blocked','阻塞'],['done','完成']].map(([status,title]) => `<section class="task-column"><h3>${title}</h3>${project.tasks.map((task,i) => (['pending','running','done'].includes(task.status) ? task.status : 'blocked') === status ? taskCards[i] : '').join('') || '<p class="muted">暂无任务</p>'}</section>`).join('')}</div>` : '<div class="empty-section">规划完成后，这里会展示按顺序执行的小任务。<br>每个任务都会关联可执行的测试项目。</div>';
   renderInspector(); renderRuns();
 }
@@ -134,7 +136,7 @@ function renderPlanPreview() {
   if (!visible) return;
   const tasks = project.tasks.map((task, index) => `<li><strong>${index + 1}. ${escape(task.title)}</strong><p>${escape(task.description)}</p><small>验收：${task.check_ids.map(id => escape(project.checks.find(check => check.id === id)?.title || id)).join('、')}</small></li>`).join('');
   const checks = project.checks.map(check => `<li><strong>${escape(check.title)}</strong><p>${escape(check.expectation)}</p><code>${escape(check.command)}</code></li>`).join('');
-  html('#plan-preview', `<div class="plan-heading"><div><small>总体计划与任务拆解</small><h2>${waiting ? '计划已就绪，等待你确认' : project.status === 'planning' ? '正在拆解目标' : '已确认的实施计划'}</h2></div>${waiting ? `<button class="secondary" data-action="edit-plan">调整计划</button><button class="primary" data-action="approve" ${project.active || busy ? 'disabled' : ''}>确认计划并开始实现</button>` : ''}</div><p>${escape(project.summary)}</p>${tasks ? `<details ${waiting ? 'open' : ''}><summary>${project.tasks.length} 个任务 · ${project.checks.length} 项测试 · ${project.settings.confirmationMode === 'auto' ? '自动确认' : '人工确认'}</summary><div class="plan-columns"><div><h3>执行任务</h3><ol>${tasks}</ol></div><div><h3>验收项目</h3><ol>${checks}</ol></div></div></details>` : '<p>规划 Agent 会分析目标并制定可执行的测试；需要信息时将在下方提问。</p>'}`);
+  html('#plan-preview', `<div class="plan-heading"><div><small>总体计划与任务拆解</small><h2>${waiting ? '计划已就绪，等待你确认' : project.status === 'planning' ? '正在拆解目标' : '已确认的实施计划'}</h2></div>${waiting ? `<button class="secondary" data-action="edit-plan">调整计划</button><button class="primary" data-action="approve" ${project.active || busy ? 'disabled' : ''}>确认计划并开始实现</button>${promptLink()}` : ''}</div><p>${escape(project.summary)}</p>${tasks ? `<details ${waiting ? 'open' : ''}><summary>${project.tasks.length} 个任务 · ${project.checks.length} 项测试 · ${project.settings.confirmationMode === 'auto' ? '自动确认' : '人工确认'}</summary><div class="plan-columns"><div><h3>执行任务</h3><ol>${tasks}</ol></div><div><h3>验收项目</h3><ol>${checks}</ol></div></div></details>` : '<p>规划 Agent 会分析目标并制定可执行的测试；需要信息时将在下方提问。</p>'}`);
 }
 
 // renderInspector 展示评估、实际测试结果和 Git 版本证据。
@@ -268,7 +270,7 @@ document.addEventListener('click', async (event) => {
       const executor = run.executor ? JSON.parse(run.executor) : null;
       $('#run-title').textContent = roles[run.role] || run.role;
       $('#run-meta').textContent = `${labels[run.status] || run.status} · ${date(run.created_at)}${executor ? ` · 员工 ${executor.name} · ${hostLabels[executor.hostType] || executor.hostType} · 模型 ${executor.model || '默认'} · 思考 ${executor.reasoningEffort || '默认'} · 语言 ${executor.effectiveLanguage || '历史未记录'}` : ''}${run.session_id ? ` · 会话 ${run.session_id}` : ''}`;
-      $('#run-input').textContent = run.input; $('#run-output').textContent = run.output || '运行中，流事件可在步骤记录中查询。';
+      $('#run-prompt-link').dataset.runId = run.id; $('#run-output').textContent = run.output || '运行中，流事件可在步骤记录中查询。';
       $('#run-dialog').showModal();
     }
   } catch (error) { toast(error.message); }

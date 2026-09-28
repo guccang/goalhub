@@ -1351,3 +1351,15 @@ select:focus {
 
 /* 全局管理者沿用配置表单布局，生成中由原生字段组统一锁定。 */
 .god-fields{border:0;padding:0;margin:0;min-width:0}.god-fields:disabled{opacity:.65}#god-history{padding-left:20px;overflow-wrap:anywhere}
+
+/* 提示词仅通过链接打开独立弹窗，长文本自动换行以适配窄屏。 */
+.prompt-link { color:#3659bf; font-size:14px; text-decoration:underline; text-underline-offset:3px; cursor:pointer; display:inline-block; padding:6px 0; }
+.prompt-link:hover { color:#203c90; }
+.prompt-link:focus-visible { outline:2px solid #3659bf; outline-offset:4px; border-radius:3px; }
+.team-generator-actions { align-items:center; }
+.team-generator-actions .prompt-link { order:1; margin-inline:8px; }
+.team-generator .setup-note { font-size:14px; line-height:1.7; margin:12px 0; }
+.team-generator textarea { font-size:16px; line-height:1.6; }
+.prompt-dialog { width:min(960px, calc(100vw - 32px)); max-height:85vh; }
+.prompt-dialog pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.65; max-height:48vh; }
+#host-test-output pre { white-space:pre-wrap; overflow-wrap:anywhere; }

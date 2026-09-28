@@ -8,6 +8,7 @@ import { Store } from '../lib/store.mjs';
 import { Orchestrator } from '../lib/orchestrator.mjs';
 import { createApp } from '../lib/app.mjs';
 import { TeamBuilder } from '../lib/team-builder.mjs';
+import { phasePrompt } from '../lib/prompts.mjs';
 import { team } from '../lib/employees.mjs';
 
 // proposal 构造具有项目专属分工的模型输出。
@@ -151,4 +152,59 @@ test('God 配置独立持久化，项目负责人和全局默认模型变更不�
   assert.equal(draft.result.employees[0].isLead, true);
   assert.equal(team(f.store.project(f.project.id))[1].isLead, true);
   assert.equal((await f.request(`/projects/${f.project.id}/employees`, { employees: [{ ...originalTeam[0], id: 'goalhub-god' }] })).status, 400);
+});
+
+// 预览与实际调用共用输入，预览本身不能创建执行记录或持久化 God 配置。
+test('God 提示词预览使用当前草稿且没有执行副作用', async t => {
+  const f = await fixture(t), path = `/projects/${f.project.id}`;
+  const before = f.store.project(f.project.id);
+  const values = { role: 'team-builder', goal: '预览新目标 <script>alert(1)</script>', context: '当前未保存的背景', language: 'en' };
+  const preview = await f.request(path + '/prompt-preview', values);
+  assert.equal(preview.status, 200);
+  assert.match(preview.value.entries[0].input, /当前未保存的背景/);
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.server.teamBuilder.latest(f.project.id), null);
+  assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM god_config').get().n, 0);
+  assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM runs').get().n, 0);
+  assert.deepEqual(f.store.project(f.project.id), before);
+  await f.request(path + '/team-generation', values); await f.finish();
+  assert.equal(f.calls[0].input, preview.value.entries[0].input);
+});
+
+// 逐阶段核对真实调用的身份、语言和协议，并确认预览不会调度执行。
+test('所有项目阶段提供预览且与调用使用同一输入', async t => {
+  const f = await fixture(t), id = f.project.id, path = `/projects/${id}/prompt-preview`;
+  const all = await f.request(path, {});
+  assert.equal(all.status, 200); assert.equal(all.value.entries.length, 5);
+  assert.ok(all.value.entries.every(entry => entry.input && !entry.error));
+  assert.equal(f.calls.length, 0);
+  f.orchestrator.runtime.host = async options => { f.calls.push(options); return { done: Promise.resolve({ code: 0, finalMessage: '{}' }), stop() {} }; };
+  for (const role of ['planner', 'coordinator', 'developer', 'evaluator', 'final-review']) {
+    const preview = (await f.request(path, { role })).value.entries[0];
+    const task = { title: '待规划或分配的任务', description: '实际调用时替换为已分配任务', assignee: '' };
+    const input = phasePrompt(role, { context: f.orchestrator.context(id), task });
+    const control = { id, busyEmployees: new Set(), handles: new Set(), interrupted: new Set() };
+    await f.orchestrator.agent(control, role, '.', input, false, preview.executor.id);
+    assert.equal(f.calls.at(-1).input, preview.input, role);
+  }
+  const edited = team(f.store.project(id)); edited[1].instructions = '未保存的工作说明';
+  const draft = await f.request(path, { role: 'developer', employees: edited, employeeId: edited[1].id, language: 'en', context: '新背景' });
+  assert.match(draft.value.entries[0].input, /未保存的工作说明/);
+  assert.equal(draft.value.entries[0].executor.effectiveLanguage, 'en');
+  assert.notEqual(team(f.store.project(id))[1].instructions, edited[1].instructions);
+  assert.equal((await f.request(path, { role: 'unknown' })).status, 400);
+  assert.equal((await f.request(path, { goal: 42 })).status, 400);
+  assert.equal((await f.request(path, { answers: [{}] })).status, 400);
+});
+
+// 连通性预览仅生成带占位符的输入，保存配置和真实测试留给原操作。
+test('宿主连通性预览复用测试协议且不产生探测记录', async t => {
+  const f = await fixture(t);
+  const preview = await f.request('/host/prompt-preview', { reasoningEffort: 'high' });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.value.entries[0].input, f.server.hostSetup.prompt({ reasoningEffort: 'high' }));
+  assert.match(preview.value.entries[0].input, /运行时生成的校验码/);
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM host_tests').get().n, 0);
+  assert.equal((await f.request('/host/prompt-preview', { reasoningEffort: 'invalid' })).status, 400);
 });

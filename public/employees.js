@@ -1,4 +1,5 @@
 // 本文件管理项目员工草稿，以人物选择、职位定义和负责人设置完成组队。
+import { promptLink } from './prompt-preview.js';
 import { attachModelPicker } from './model-picker.js';
 import { paintPortrait } from './vendor/munder-difflin/portrait-art.js';
 const hosts = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
@@ -172,7 +173,7 @@ export class EmployeeManager {
       <label>思考强度<select name="reasoningEffort" ${employee.hostType !== 'codex' ? 'disabled' : ''}>${options({ '': employee.hostType === 'codex' ? '模型默认' : '此宿主暂不支持', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }, employee.reasoningEffort)}</select></label>
       <label>单轮时限（分钟）<input type="number" name="timeoutMinutes" min="1" max="240" value="${employee.timeoutMinutes}" required></label>
       <label>员工母语<select name="nativeLanguage">${options({ '': '继承项目语言', ...this.languages }, employee.nativeLanguage || '')}</select></label></div>
-      <button class="secondary employee-remove" type="button" data-remove-employee>移除此员工</button>`;
+      ${promptLink('employee')}<button class="secondary employee-remove" type="button" data-remove-employee>移除此员工</button>`;
     this.paint(this.detail);
     attachModelPicker(this.detail.querySelector('[name=model]'), this.api, () => employee.hostType).load();
   }
