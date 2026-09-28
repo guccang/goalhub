@@ -12,25 +12,27 @@ let selectedGoal = '';
 let selected = localStorage.getItem('goalhub.project') || '', project = null, projects = [], tab = 'tasks', busy = false, refreshInFlight = false;
 let events = [], search = '', kind = '', questionsKey = '', toastTimer, eventProject = '', historyMode = false;
 const markupCache = new WeakMap();
-let mode = localStorage.getItem('goalhub.view') === 'dashboard' ? 'dashboard' : 'office';
+let recordsOwner = null;
 const office = new OfficeView({ onAction: action, onError: toast,
   onManage: () => employees.open(selected),
+  onSelect: showEmployeeRecords,
   // sendSteer 使用提交时的项目编号，避免切换项目后把指令发给另一个目标。
   onSteer: async (id, content) => { await api(`/projects/${id}/steer`, { content }); await refresh(); toast('补充指令已记录，正在继续执行'); },
 });
 
-const setup = new SetupFlow({ api, selectProject, refresh, toast, buildTeam: async id => { document.querySelector('#mode-office').click(); await employees.open(id, { generate: true }); } });
+const setup = new SetupFlow({ api, selectProject, refresh, toast, buildTeam: async id => { await employees.open(id, { generate: true }); } });
 const panels = new ProjectsPanel({ api, selectProject, selectGoal, refresh, toast });
 
 // selectGoal 只切换查看目标，不改变项目当前执行目标。
-async function selectGoal(id) { selectedGoal = id; historyMode = false; eventProject = ''; questionsKey = ''; setMode('dashboard'); await refresh(); }
+async function selectGoal(id) { selectedGoal = id; historyMode = false; eventProject = ''; questionsKey = ''; await refresh(); }
 const employees = new EmployeeManager({ api, refresh, toast });
 
-// setMode 在办公室和任务记录之间切换，不改变项目的执行状态。
-function setMode(value) {
-  mode = project?.historical ? 'dashboard' : value; localStorage.setItem('goalhub.view', mode);
-  for (const name of ['office', 'dashboard']) { $(`#${name}-view`).hidden = mode !== name; $(`#mode-${name}`).setAttribute('aria-selected', String(mode === name)); }
-  office.setVisible(!!project && !project.historical && mode === 'office');
+// showEmployeeRecords 仅通过负责人打开项目档案，普通员工保留个人信息。
+function showEmployeeRecords(actor) {
+  recordsOwner = actor;
+  $('#leader-records').hidden = !actor.isLead;
+  $('#leader-records-title').textContent = `${actor.name} · 项目全部记录`;
+  if (actor.isLead && tab === 'activity') loadEvents().catch(error => toast(error.message));
 }
 
 // html 仅在内容变化时替换节点，保留轮询期间的键盘焦点与详情展开状态。
@@ -83,8 +85,10 @@ function renderProject() {
   $('#empty').hidden = !!project; $('#project').hidden = !project;
   if (!project) { office.setVisible(false); return; }
   panels.render(project); setup.syncProject(project);
-  office.update(project, busy || !!project.historical || !project.active_goal_id); office.setVisible(mode === 'office' && !project.historical);
-  $('#office-view').hidden = mode !== 'office' || !!project.historical;
+  office.update(project, busy || !!project.historical || !project.active_goal_id); office.setVisible(true);
+  $('#office-view').hidden = false;
+  if (recordsOwner) recordsOwner = project.office?.actors.find(actor => actor.id === recordsOwner.id) || null;
+  $('#leader-records').hidden = !recordsOwner?.isLead;
   $('#project-title').textContent = project.name; document.title = `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
   html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
@@ -104,7 +108,7 @@ function renderProject() {
   renderInspector(); renderRuns();
 }
 
-// renderPlanPreview 展示真实任务与测试命令，人工确认入口在两种视图中均可见。
+// renderPlanPreview 展示真实任务与测试命令，待确认计划始终可见。
 function renderPlanPreview() {
   const waiting = project.status === 'awaiting_approval' && !project.historical;
   const visible = waiting || project.status === 'planning';
@@ -174,6 +178,9 @@ async function refresh() {
     if (selected) {
       const id = selected, goal = selectedGoal, detail = await api(selectedGoal ? `/projects/${id}/goals/${selectedGoal}` : `/projects/${id}`);
       if (id !== selected || goal !== selectedGoal) return;
+      // 历史档案仍从当前办公室员工进入，历史执行操作保持禁用。
+      if (detail.historical) detail.office = (await api(`/projects/${id}/office`));
+      if (id !== selected || goal !== selectedGoal) return;
       project = detail; renderProject();
       if (tab === 'activity' && (!historyMode || eventProject !== selected)) await loadEvents();
     } else { project = null; renderProject(); }
@@ -183,6 +190,7 @@ async function refresh() {
 
 // selectProject 清理上一个项目的筛选和表单状态。
 async function selectProject(id) {
+  recordsOwner = null;
   selectedGoal = ''; selected = id; localStorage.setItem('goalhub.project', id); questionsKey = ''; historyMode = false; events = []; search = ''; kind = '';
   $('#log-search').reset();
   const detail = await api(`/projects/${id}`);
@@ -223,7 +231,6 @@ document.addEventListener('click', async (event) => {
   if (!button) return;
   try {
     if (button.dataset.action) await action(button.dataset.action);
-    if (button.dataset.mode) setMode(button.dataset.mode);
     if (button.dataset.project) await selectProject(button.dataset.project);
     if (button.dataset.tab) {
       tab = button.dataset.tab;
@@ -258,6 +265,5 @@ $('#log-search').addEventListener('submit', async (event) => {
   try { await loadEvents(); } catch (error) { toast(error.message); }
 });
 
-setMode(mode);
 await refresh();
 setInterval(refresh, 2000);

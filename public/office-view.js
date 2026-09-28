@@ -10,16 +10,15 @@ function time(value) { return new Date(value).toLocaleTimeString('zh-CN', { hour
 
 export class OfficeView {
   // constructor 初始化一次性的办公室组件与控制事件。
-  constructor({ onAction, onSteer, onError, onManage }) {
+  constructor({ onAction, onSteer, onError, onManage, onSelect }) {
+    this.onSelect = onSelect;
     this.root = document.querySelector('#office-view'); this.selected = 'developer'; this.online = true; this.sending = false; this.drafts = new Map();
     try { this.scene = new OfficeScene(this.find('#office-canvas'), (role) => this.select(role)); }
     catch (error) { this.find('#office-canvas-error').hidden = false; this.find('#office-canvas-error').textContent = `画布暂不可用，可使用下方角色列表与控制面板：${error.message}`; }
-    this.root.addEventListener('office:navigate', event => {
-      if (['human', 'controls'].includes(event.detail)) { this.root.classList.remove('expanded'); const expand = this.find('[data-office-camera=expand]'); expand.textContent = '展开'; expand.setAttribute('aria-label', '展开办公室'); }
-      if (event.detail === 'tasks') { document.querySelector('#mode-dashboard').click(); document.querySelector('#tab-tasks').click(); document.querySelector('#task-list').scrollIntoView({ block: 'center' }); }
-      else if (event.detail === 'human') { const questions = document.querySelector('#question-panel'); (questions.hidden ? this.find('#office-steer-form') : questions).scrollIntoView({ block: 'center' }); }
-      else if (event.detail === 'triggers') { document.querySelector('#mode-dashboard').click(); document.querySelector('#evaluation-copy').scrollIntoView({ block: 'center' }); }
-      else { this.root.classList.remove('expanded'); this.find('#office-run-control').scrollIntoView({ block: 'center' }); }
+    // 场景原有道具点击统一引导至负责人，不再打开独立任务页面。
+    this.root.addEventListener('office:navigate', () => {
+      const leader = this.snapshot?.actors.find(actor => actor.isLead);
+      if (leader) this.select(leader.id);
     });
     this.find('#office-motion').setAttribute('aria-pressed', String(!this.scene?.motion));
     this.find('#manage-employees').addEventListener('click', () => onManage());
@@ -27,18 +26,6 @@ export class OfficeView {
       const button = event.target.closest('button');
       if (!button) return;
       if (button.dataset.officeRole) this.select(button.dataset.officeRole);
-      // 设施入口连接真实任务、人工确认与记录，不创建额外的虚构员工。
-      if (button.dataset.officePlace) {
-        const place = button.dataset.officePlace;
-        this.root.classList.remove('expanded');
-        if (place === 'meeting') {
-          const plan = document.querySelector('#plan-preview'), questions = document.querySelector('#question-panel');
-          (!questions.hidden ? questions : !plan.hidden ? plan : this.find('#office-steer-form')).scrollIntoView({ block: 'center' });
-        } else {
-          document.querySelector('#mode-dashboard').click();
-          document.querySelector(place === 'archive' ? '#tab-activity' : '#tab-tasks').click();
-        }
-      }
       if (button.dataset.officeCamera) {
         const camera = button.dataset.officeCamera;
         if (camera === 'in') this.scene?.zoomBy(.25);
@@ -107,9 +94,12 @@ export class OfficeView {
   select(role) {
     if (!this.snapshot?.actors.some((actor) => actor.id === role)) return;
     // 点击角色时展开输出，保持场景查看记录的入口可达。
+    this.root.classList.remove('expanded');
+    const expand = this.find('[data-office-camera=expand]'); expand.textContent = '展开'; expand.setAttribute('aria-label', '展开办公室');
     this.find('.office-secondary').open = true;
     this.selected = role; this.outputKey = null;
     this.scene?.select(role); this.renderRoster(); this.renderActor();
+    this.onSelect?.(this.snapshot.actors.find(actor => actor.id === role));
   }
 
   // renderRoster 在状态变化时更新可键盘操作的角色按钮。
@@ -121,9 +111,6 @@ export class OfficeView {
     const employees = this.snapshot.actors.filter(actor => actor.kind !== 'facility');
     this.find('#office-roster').innerHTML = employees.map((actor) => `<button class="office-roster-item ${this.selected === actor.id ? 'selected' : ''}" data-office-role="${actor.id}" aria-pressed="${this.selected === actor.id}" aria-label="${escape(actor.name)}，${states[actor.state]}"><canvas width="36" height="56" data-portrait="${actor.id}" aria-hidden="true"></canvas><span><strong>${escape(actor.name)}${actor.isLead ? ' · 负责人' : ''}</strong><small>${escape(actor.position || '未定义职位')}</small><small class="office-state ${actor.state}">${states[actor.state]}</small></span></button>`).join('');
     for (const actor of employees) paintPortrait(this.find(`[data-portrait="${actor.id}"]`).getContext('2d'), actor.character, 2);
-    const station = this.snapshot.actors.find(actor => actor.id === 'test');
-    this.find('#office-test-station').textContent = `测试工作站 · ${states[station?.state] || '待命'}`;
-    this.find('#office-test-station').setAttribute('aria-pressed', String(this.selected === 'test'));
     if (focused) this.find(`[data-office-role="${focused}"]`)?.focus({ preventScroll: true });
   }
 
@@ -140,17 +127,30 @@ export class OfficeView {
     this.find('#office-agent-description').textContent = actor.description;
     this.find('#office-agent-activity').textContent = actor.activity;
     this.find('#office-agent-session').textContent = actor.run ? `轮次 ${actor.run.id.slice(0, 8)}${actor.run.session_id ? ` · 会话 ${actor.run.session_id.slice(0, 12)}` : ''}` : '此角色尚未开始执行';
-    const button = this.find('#office-full-run'); button.disabled = !actor.run;
+    this.renderEmployeeWork(actor);
+    const button = this.find('#office-full-run'); button.disabled = !actor.run || !!this.project.historical;
     if (actor.run) button.dataset.run = actor.run.id; else delete button.dataset.run;
     this.find('#office-output-title').textContent = `${actor.name} · ${actor.state === 'working' ? '实时输出' : '最近一轮输出'}`;
-    const key = `${actor.run?.id}:${actor.events.map((event) => event.id).join(',')}`;
+    const key = `${this.project.viewed_goal_id}:${actor.run?.id}:${actor.events.map((event) => event.id).join(',')}`;
     if (this.outputKey !== key) {
       const output = this.find('#office-output'), atBottom = output.scrollHeight - output.scrollTop - output.clientHeight < 35;
       const changedRole = this.outputKey === null;
-      output.textContent = actor.events.length ? actor.events.map((event) => `${time(event.created_at)}  ${event.kind}\n${event.content}`).join('\n\n') : '该角色尚无输出。开始执行后，实际 Agent 与测试进程的输出会显示在这里。';
+      output.textContent = this.project.historical ? '正在查看历史迭代，请通过负责人的项目记录查看当时的完整输入输出。' : actor.events.length ? actor.events.map((event) => `${time(event.created_at)}  ${event.kind}\n${event.content}`).join('\n\n') : '该角色尚无输出。开始执行后，实际 Agent 与测试进程的输出会显示在这里。';
       if (atBottom || changedRole) output.scrollTop = output.scrollHeight;
       this.outputKey = key;
     }
+  }
+
+  // renderEmployeeWork 普通员工展示分配任务及对应验收，负责人集中提供项目档案。
+  renderEmployeeWork(actor) {
+    const target = this.find('#employee-work');
+    if (actor.isLead) { this.workContent = null; target.innerHTML = '<p class="office-help">点击负责人后，可在办公室下方查看项目全部记录和历史迭代。</p>'; return; }
+    const tasks = this.project.tasks.filter(task => task.assignee === actor.id);
+    const checkIds = new Set(tasks.flatMap(task => task.check_ids));
+    const checks = this.project.checks.filter(check => checkIds.has(check.id));
+    const runs = this.project.runs.filter(run => run.employee_id === actor.id);
+    const content = `<h3>员工执行记录</h3>${runs.map(run => `<button class="run-row" data-run="${escape(run.id)}">${escape(new Date(run.created_at).toLocaleString())} · ${escape(run.role)}</button>`).join('') || '<p class="office-help">暂无执行记录。</p>'}<h3>${escape(actor.name)}的任务</h3>${tasks.map(task => `<article><strong>${escape(task.title)}</strong><p>${escape(task.description)}</p><p>${escape(task.result || task.done_when || '等待执行')}</p></article>`).join('') || '<p class="office-help">当前迭代暂无分配任务。</p>'}<h3>相关验收</h3>${checks.map(check => `<details><summary>${escape(check.title)} · ${escape(({ passed: '已通过', failed: '未通过', running: '执行中', pending: '待执行' })[check.status] || check.status)}</summary><p>${escape(check.expectation)}</p><pre>${escape(check.output || '暂无测试输出')}</pre></details>`).join('') || '<p class="office-help">暂无相关验收。</p>'}`;
+    if (this.workContent !== content) { target.innerHTML = content; this.workContent = content; }
   }
 
   // renderControls 按项目状态和网络状态启用可执行操作。

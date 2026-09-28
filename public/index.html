@@ -35,18 +35,16 @@
     </div>
     <section id="project" hidden>
       <header class="project-header"><div><div class="breadcrumb">我的项目 <span>/</span> 执行工作台</div><h1 id="project-title"></h1><div class="header-meta"><span id="project-status"></span><span id="project-created"></span></div></div><div class="header-actions" id="project-actions"></div></header><p id="project-progress-summary" class="project-progress-summary" aria-live="polite"></p>
-      <div class="workspace-mode" role="tablist" aria-label="工作区视图"><button role="tab" id="mode-office" data-mode="office" aria-selected="true" aria-controls="office-view">像素办公室</button><button role="tab" id="mode-dashboard" data-mode="dashboard" aria-selected="false" aria-controls="dashboard-view">任务与记录</button><span>角色状态与项目执行同步</span></div>
-      <section id="office-view" class="office-view" role="tabpanel" aria-labelledby="mode-office">
+      <section id="office-view" class="office-view" aria-label="像素办公室">
         <div class="office-main">
           <div class="office-scene-card">
             <div class="office-scene-heading"><div><h2>项目办公室</h2><span id="office-progress">等待同步</span></div><span id="office-connection" class="office-connection" aria-live="polite">正在连接</span></div>
-            <div class="office-canvas-wrap"><div id="office-canvas" role="img" aria-label="Munder Difflin 完整办公室。点击角色查看输出，点击看板、日历或时钟打开对应控制。"></div><p id="office-canvas-error" hidden></p></div>
+            <div class="office-canvas-wrap"><div id="office-canvas" role="img" aria-label="Munder Difflin 完整办公室。点击员工查看任务、验收与输出，点击负责人查看项目全部记录。"></div><p id="office-canvas-error" hidden></p></div>
             <div class="office-scene-footer"><div class="office-legend"><span><i class="working"></i>工作中</span><span><i class="success"></i>本轮结束</span><span><i class="blocked"></i>需要处理</span></div><div class="office-camera"><button data-office-camera="out" aria-label="缩小办公室">−</button><button data-office-camera="fit" aria-label="显示完整办公室">全景</button><button type="button" data-office-camera="expand" aria-label="展开办公室">展开</button><button data-office-camera="in" aria-label="放大办公室">＋</button><button data-office-camera="motion" id="office-motion" aria-pressed="false">减少动态</button></div></div>
           </div>
           <details class="office-secondary"><summary>员工与运行输出</summary><div class="office-team-heading"><h3>项目员工</h3><button class="secondary" id="manage-employees">管理员工</button></div>
           <div id="office-roster" class="office-roster" role="group" aria-label="选择办公室角色"></div>
-          <nav class="office-facilities" aria-label="办公室设施"><button data-office-place="tasks">任务看板</button><button data-office-place="meeting">会议桌</button><button data-office-role="test" id="office-test-station">测试工作站</button><button data-office-place="archive">档案柜</button></nav>
-          <section class="office-terminal"><div class="office-terminal-heading"><h2 id="office-output-title">角色输出</h2><button id="office-full-run" class="text-button" disabled>查看完整输入输出</button></div><pre id="office-output" tabindex="0" aria-label="所选角色的运行输出">选择一个角色查看运行记录。</pre></section>
+          <div id="employee-work"></div><section class="office-terminal"><div class="office-terminal-heading"><h2 id="office-output-title">角色输出</h2><button id="office-full-run" class="text-button" disabled>查看完整输入输出</button></div><pre id="office-output" tabindex="0" aria-label="所选角色的运行输出">选择一个角色查看运行记录。</pre></section>
           </details><div class="office-attribution">完整办公室场景来自 <a href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noreferrer">Munder Difflin</a><a href="/office-license.txt" target="_blank" rel="noreferrer">代码 MIT 许可</a><a href="https://limezu.itch.io/" target="_blank" rel="noreferrer">像素素材：LimeZu</a><a href="/office-engine/ASSET-LICENSE.txt" target="_blank">素材许可</a><span>工作状态来自真实记录；散步、喝咖啡为场景动画。</span></div>
         </div>
         <aside class="office-controls">
@@ -62,7 +60,9 @@
       </section>
       <section id="plan-preview" class="plan-preview" hidden></section>
       <section id="question-panel" class="question-panel project-questions" hidden></section>
-      <div class="project-body" id="dashboard-view" role="tabpanel" aria-labelledby="mode-dashboard" hidden>
+      <section id="leader-records" hidden aria-labelledby="leader-records-title"><h2 id="leader-records-title">负责人 · 项目记录</h2><p class="subtle">在这里查看各次迭代的任务、验收、输入输出和步骤记录。</p>
+      <section class="iteration-panel"><div class="iteration-toolbar"><label for="iteration-select">目标与迭代<select id="iteration-select"></select></label></div><details><summary>仓库信息</summary><small id="project-repository"></small></details></section>
+      <div class="project-body" id="dashboard-view">
         <div class="main-column">
           <section class="goal-section"><div class="section-heading"><h2>目标</h2><button class="text-button" data-action="toggle-goal">展开详情</button></div><p id="goal-text" class="goal-text clamped"></p><div id="pipeline" class="pipeline"></div></section>
           <div id="summary" class="summary" aria-live="polite"></div>
@@ -82,6 +82,7 @@
           <section class="inspector-section"><h2>运行设置</h2><dl id="settings-list" class="settings-list"></dl></section>
         </aside>
       </div>
+      </section>
   <section id="create-dialog" class="goal-composer" aria-labelledby="composer-title">
     <div class="dialog-header"><div><h2 id="composer-title">下一步，想做什么？</h2><p id="goal-project-label">在当前项目中继续迭代，协调者会阅读已有代码和历史上下文。</p></div></div>
 
@@ -100,7 +101,7 @@
       </form>
     </section>
   </section>
-      <section class="iteration-panel"><div class="iteration-toolbar"><label for="iteration-select">目标与迭代<select id="iteration-select"></select></label></div><details><summary>仓库信息</summary><small id="project-repository"></small></details></section>
+
       <details class="usage-panel"><summary id="usage-summary">项目上下文与用量</summary><p class="subtle">上下文容量按会话显示；累计用量按目标、项目汇总。未知表示宿主未上报，缓存读取已包含在输入中。</p><div id="session-metrics"></div><div class="table-scroll" id="project-usage"></div><details><summary>按日期、目标、角色和模型查看明细</summary><div class="table-scroll" id="project-usage-details"></div></details><button class="text-button" data-action="reset-session" id="reset-session">下次使用新会话（保留项目历史）</button></details>
     </section>
   </main>
