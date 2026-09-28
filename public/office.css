@@ -77,3 +77,7 @@
 .office-view.expanded .office-controls { display:none; }
 .office-view.expanded #office-canvas { height:min(76vh,1000px); aspect-ratio:auto; }
 @media(max-width:600px) { #office-canvas { min-height:340px; }.office-view.expanded #office-canvas { height:65vh; } }
+/* 办公室设施与员工名册分区，测试状态独立于质量工程师。 */
+.office-facilities { display:flex; flex-wrap:wrap; gap:8px; padding:12px 0; }
+.office-facilities button { flex:1; min-width:120px; padding:12px; border:1px solid #cbd5df; background:#f5f7fa; border-radius:6px; color:#263b53; }
+.office-facilities button[aria-pressed="true"] { border-color:#345fea; color:#244eaa; background:#edf2ff; }

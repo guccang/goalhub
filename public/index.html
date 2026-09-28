@@ -44,11 +44,13 @@
             <div class="office-scene-footer"><div class="office-legend"><span><i class="working"></i>工作中</span><span><i class="success"></i>本轮结束</span><span><i class="blocked"></i>需要处理</span></div><div class="office-camera"><button data-office-camera="out" aria-label="缩小办公室">−</button><button data-office-camera="fit" aria-label="显示完整办公室">全景</button><button type="button" data-office-camera="expand" aria-label="展开办公室">展开</button><button data-office-camera="in" aria-label="放大办公室">＋</button><button data-office-camera="motion" id="office-motion" aria-pressed="false">减少动态</button></div></div>
           </div>
           <div id="office-roster" class="office-roster" role="group" aria-label="选择办公室角色"></div>
+          <nav class="office-facilities" aria-label="办公室设施"><button data-office-place="tasks">任务看板</button><button data-office-place="meeting">会议桌</button><button data-office-role="test" id="office-test-station">测试工作站</button><button data-office-place="archive">档案柜</button></nav>
           <section class="office-terminal"><div class="office-terminal-heading"><h2 id="office-output-title">角色输出</h2><button id="office-full-run" class="text-button" disabled>查看完整输入输出</button></div><pre id="office-output" tabindex="0" aria-label="所选角色的运行输出">选择一个角色查看运行记录。</pre></section>
           <div class="office-attribution">完整办公室场景来自 <a href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noreferrer">Munder Difflin</a><a href="/office-license.txt" target="_blank" rel="noreferrer">代码 MIT 许可</a><a href="https://limezu.itch.io/" target="_blank" rel="noreferrer">像素素材：LimeZu</a><a href="/office-engine/ASSET-LICENSE.txt" target="_blank">素材许可</a><span>工作状态来自真实记录；散步、喝咖啡为场景动画。</span></div>
         </div>
         <aside class="office-controls">
-          <div class="office-person"><canvas id="office-portrait" width="36" height="56" aria-hidden="true"></canvas><div><h2 id="office-agent-name">开发员</h2><span id="office-agent-status" class="office-state idle">待命</span></div></div>
+          <div class="office-person"><canvas id="office-portrait" width="36" height="56" aria-hidden="true"></canvas><div><h2 id="office-agent-name">软件工程师</h2><span id="office-agent-status" class="office-state idle">待命</span></div></div>
+          <p id="office-agent-host" class="office-agent-description"></p>
           <p id="office-agent-description" class="office-agent-description"></p>
           <div class="office-assignment"><span>当前状态</span><p id="office-agent-activity">等待任务分配</p><small id="office-agent-session"></small></div>
           <section class="office-control-section"><h3>项目控制</h3><div class="office-control-buttons"><button class="primary" id="office-run-control" data-office-control="start">继续执行</button><button class="secondary" id="office-review-control" data-office-control="evaluate">立即评估</button></div><p id="office-control-hint" class="office-help">控制作用于当前项目，角色会随真实状态更新。</p></section>

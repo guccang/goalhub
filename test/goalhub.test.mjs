@@ -263,6 +263,16 @@ test('办公室映射并发角色、历史轮次和真实交接，不伪造运�
   assert.ok(snapshot.actors.find((actor) => actor.id === 'developer').recentOutput.includes('真实源码'));
   assert.equal(snapshot.messages[0].from, 'planner'); assert.equal(snapshot.messages[0].to, 'developer');
   assert.equal(snapshot.progress.total, 1);
+  // 测试命令只驱动工作站，质量工程师只在真实最终验收轮次中工作。
+  f.store.beginRun(f.project.id, 'test', '执行测试');
+  let separated = buildOfficeSnapshot(f.store, active, f.project.id);
+  assert.equal(separated.actors.find(actor => actor.id === 'test').kind, 'facility');
+  assert.equal(separated.actors.find(actor => actor.id === 'test').state, 'working');
+  assert.equal(separated.actors.find(actor => actor.id === 'quality').state, 'idle');
+  f.store.beginRun(f.project.id, 'final-review', '核对交付');
+  separated = buildOfficeSnapshot(f.store, active, f.project.id);
+  assert.equal(separated.actors.find(actor => actor.id === 'quality').state, 'working');
+  assert.equal(separated.actors.filter(actor => actor.kind === 'employee').length, 4);
   const offline = buildOfficeSnapshot(f.store, { controls: new Map() }, f.project.id);
   assert.equal(offline.actors.some((actor) => actor.state === 'working'), false);
 });
@@ -290,7 +300,7 @@ test('办公室 HTTP 快照、补充指令与上游模块可访问，跨源写�
   t.after(() => { server.closeAllConnections(); server.close(); });
   const base = `http://127.0.0.1:${server.address().port}`, endpoint = `${base}/api/projects/${f.project.id}`;
   const initial = await (await fetch(`${endpoint}/office`)).json();
-  assert.equal(initial.actors.length, 4); assert.ok(initial.actors.every((actor) => actor.state === 'idle'));
+  assert.equal(initial.actors.length, 5); assert.ok(initial.actors.every((actor) => actor.state === 'idle'));
   const script = await fetch(`${base}/vendor/munder-difflin/portrait-art.js`);
   assert.equal(script.status, 200); assert.match(script.headers.get('content-type'), /javascript/);
   assert.ok((await script.text()).includes('sceneFrameBufs'));

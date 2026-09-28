@@ -35,7 +35,8 @@ export class OfficeScene {
   update(snapshot: any, reconnect = false) {
     if (snapshot.projectId !== this.projectId) { this.projectId = snapshot.projectId; this.lastEvent = null; setState({ agents: [] }); this.mount(); }
     const accents = ['coral', 'sky', 'lemon', 'mint'];
-    setState({ agents: snapshot.actors.map((actor: any, index: number) => ({ id: actor.id, character: actor.character, isGod: actor.id === 'planner', accent: accents[index], status: actor.state === 'paused' ? 'waiting' : actor.state === 'error' ? 'blocked' : actor.state, action: actor.activity, carrying: '', lastPrompt: '' })) });
+    // 只有员工生成像素人物；测试命令设施不会变成人物或触发员工工作动画。
+    setState({ agents: snapshot.actors.filter((actor: any) => actor.kind !== 'facility').map((actor: any, index: number) => ({ id: actor.id, character: actor.character, isGod: actor.id === 'planner', accent: accents[index], status: actor.state === 'paused' ? 'waiting' : actor.state === 'error' ? 'blocked' : actor.state, action: `${actor.name} · ${actor.hostType || ''} · ${actor.activity}`, carrying: '', lastPrompt: '' })) });
     for (const event of snapshot.messages) {
       if (this.lastEvent !== null && event.id > this.lastEvent && !reconnect && this.visible && this.motion && this.connected) goalhubBridge.emit({ from: event.from, targets: [event.to], act: event.kind.includes('completed') ? 'done' : event.kind === 'input.required' ? 'query' : 'inform', needsHuman: event.to === 'human' });
     }

@@ -26,6 +26,18 @@ export class OfficeView {
       const button = event.target.closest('button');
       if (!button) return;
       if (button.dataset.officeRole) this.select(button.dataset.officeRole);
+      // 设施入口连接真实任务、人工确认与记录，不创建额外的虚构员工。
+      if (button.dataset.officePlace) {
+        const place = button.dataset.officePlace;
+        this.root.classList.remove('expanded');
+        if (place === 'meeting') {
+          const plan = document.querySelector('#plan-preview'), questions = document.querySelector('#question-panel');
+          (!questions.hidden ? questions : !plan.hidden ? plan : this.find('#office-steer-form')).scrollIntoView({ block: 'center' });
+        } else {
+          document.querySelector('#mode-dashboard').click();
+          document.querySelector(place === 'archive' ? '#tab-activity' : '#tab-tasks').click();
+        }
+      }
       if (button.dataset.officeCamera) {
         const camera = button.dataset.officeCamera;
         if (camera === 'in') this.scene?.zoomBy(.25);
@@ -101,8 +113,12 @@ export class OfficeView {
     if (signature === this.rosterKey) return;
     this.rosterKey = signature;
     const focused = document.activeElement?.dataset.officeRole;
-    this.find('#office-roster').innerHTML = this.snapshot.actors.map((actor) => `<button class="office-roster-item ${this.selected === actor.id ? 'selected' : ''}" data-office-role="${actor.id}" aria-pressed="${this.selected === actor.id}" aria-label="${escape(actor.name)}，${states[actor.state]}"><canvas width="36" height="56" data-portrait="${actor.id}" aria-hidden="true"></canvas><span><strong>${escape(actor.name)}</strong><small class="office-state ${actor.state}">${states[actor.state]}</small></span></button>`).join('');
-    for (const actor of this.snapshot.actors) paintPortrait(this.find(`[data-portrait="${actor.id}"]`).getContext('2d'), actor.character, 2);
+    const employees = this.snapshot.actors.filter(actor => actor.kind !== 'facility');
+    this.find('#office-roster').innerHTML = employees.map((actor) => `<button class="office-roster-item ${this.selected === actor.id ? 'selected' : ''}" data-office-role="${actor.id}" aria-pressed="${this.selected === actor.id}" aria-label="${escape(actor.name)}，${states[actor.state]}"><canvas width="36" height="56" data-portrait="${actor.id}" aria-hidden="true"></canvas><span><strong>${escape(actor.name)}</strong><small class="office-state ${actor.state}">${states[actor.state]}</small></span></button>`).join('');
+    for (const actor of employees) paintPortrait(this.find(`[data-portrait="${actor.id}"]`).getContext('2d'), actor.character, 2);
+    const station = this.snapshot.actors.find(actor => actor.id === 'test');
+    this.find('#office-test-station').textContent = `测试工作站 · ${states[station?.state] || '待命'}`;
+    this.find('#office-test-station').setAttribute('aria-pressed', String(this.selected === 'test'));
     if (focused) this.find(`[data-office-role="${focused}"]`)?.focus({ preventScroll: true });
   }
 
@@ -110,7 +126,10 @@ export class OfficeView {
   renderActor() {
     const actor = this.snapshot.actors.find((item) => item.id === this.selected);
     if (!actor) return;
-    paintPortrait(this.find('#office-portrait').getContext('2d'), actor.character, 2);
+    const portrait = this.find('#office-portrait'); portrait.hidden = actor.kind === 'facility';
+    if (!portrait.hidden) paintPortrait(portrait.getContext('2d'), actor.character, 2);
+    const hosts = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
+    this.find('#office-agent-host').textContent = actor.kind === 'facility' ? '设施 · 本机测试进程' : `职位：${actor.name} · 执行宿主：${hosts[actor.hostType] || actor.hostType}`;
     this.find('#office-agent-name').textContent = actor.name;
     const state = this.find('#office-agent-status'); state.textContent = states[actor.state]; state.className = `office-state ${actor.state}`;
     this.find('#office-agent-description').textContent = actor.description;
