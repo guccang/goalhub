@@ -239,6 +239,7 @@ test('God 不传播旧员工目标，新目标预览包含当前已完成迭代'
   const preview = await f.request(`/projects/${id}/prompt-preview`, { role: 'planner', goal: '新增数独小游戏' });
   const prompt = preview.value.entries[0].input;
   assert.ok(prompt.startsWith('当前目标（本轮唯一产品目标）："新增数独小游戏"'));
-  assert.match(prompt, /完成 Unity 登录流程/);
+  assert.doesNotMatch(prompt, /完成 Unity 登录流程/);
+  assert.match(prompt, new RegExp(f.project.active_goal_id));
   assert.doesNotMatch(prompt, /Hello GoalHub/);
 });
