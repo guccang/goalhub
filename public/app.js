@@ -6,7 +6,7 @@ import { EmployeeManager } from './employees.js';
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
 const labels = { ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
-const roles = { planner: '负责人规划', coordinator: '任务分配', developer: '员工执行', evaluator: '定时评估', 'final-review': '最终评估', test: '测试验收' };
+const roles = { 'team-builder': 'God 搭建团队', planner: '负责人规划', coordinator: '任务分配', developer: '员工执行', evaluator: '定时评估', 'final-review': '最终评估', test: '测试验收' };
 const hostLabels = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
 let selectedGoal = '';
 let selected = localStorage.getItem('goalhub.project') || '', project = null, projects = [], tab = 'tasks', busy = false, refreshInFlight = false;
@@ -19,7 +19,7 @@ const office = new OfficeView({ onAction: action, onError: toast,
   onSteer: async (id, content) => { await api(`/projects/${id}/steer`, { content }); await refresh(); toast('补充指令已记录，正在继续执行'); },
 });
 
-const setup = new SetupFlow({ api, selectProject, refresh, toast });
+const setup = new SetupFlow({ api, selectProject, refresh, toast, buildTeam: async id => { document.querySelector('#mode-office').click(); await employees.open(id, { generate: true }); } });
 const panels = new ProjectsPanel({ api, selectProject, selectGoal, refresh, toast });
 
 // selectGoal 只切换查看目标，不改变项目当前执行目标。

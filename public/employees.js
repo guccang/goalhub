@@ -14,6 +14,21 @@ export class EmployeeManager {
     this.list = this.dialog.querySelector('#employee-list');
     this.detail = this.dialog.querySelector('#employee-detail');
     this.dialog.querySelector('[data-close-employees]').onclick = () => this.dialog.close();
+    this.dialog.addEventListener('close', () => { clearTimeout(this.pollTimer); this.openVersion++; });
+    this.dialog.querySelector('#generate-team').onclick = () => this.generateTeam();
+    this.dialog.querySelector('#load-team-proposal').onclick = () => this.applyProposal();
+    this.dialog.querySelector('#cancel-team-generation').onclick = async () => {
+      try { await this.api(`/projects/${this.projectId}/team-generation/cancel`, {}); }
+      catch (error) { this.toast(error.message); }
+    };
+    this.dialog.querySelector('#undo-team-proposal').onclick = () => {
+      if (!this.beforeGeneration) return;
+      this.employees = this.beforeGeneration.employees;
+      this.dialog.querySelector('#project-context').value = this.beforeGeneration.context;
+      this.dialog.querySelector('#project-language').value = this.beforeGeneration.language;
+      this.beforeGeneration = null; this.appliedId = null;
+      this.selected = this.employees[0]?.id; this.render(); this.renderGeneration();
+    };
     this.dialog.querySelector('#add-employee').onclick = () => {
       if (this.employees.length >= 15) return;
       const character = this.characters.find(name => !this.employees.some(employee => employee.character === name)) || this.characters[0];
@@ -56,18 +71,68 @@ export class EmployeeManager {
   // current 返回右侧当前编辑的员工。
   current() { return this.employees.find(employee => employee.id === this.selected); }
   // open 并行读取团队与项目目录，过期请求不会覆盖另一个项目。
-  async open(id) {
+  async open(id, { generate = false } = {}) {
+    const version = this.openVersion = (this.openVersion || 0) + 1;
+    clearTimeout(this.pollTimer); this.autoApplyId = null; this.appliedId = null; this.beforeGeneration = null; this.startingGeneration = false;
     this.projectId = id; this.dialog.querySelector('#employee-error').textContent = '';
     try {
       const [value, projects] = await Promise.all([this.api(`/projects/${id}/employees`), this.api('/projects')]);
-      if (this.projectId !== id) return;
+      if (this.openVersion !== version) return;
       Object.assign(this, value); this.selected = this.employees[0]?.id;
       this.dialog.querySelector('#project-language').innerHTML = options(this.languages, this.language);
       this.dialog.querySelector('#project-context').value = this.context || '';
       this.dialog.querySelector('#copy-team-source').innerHTML = '<option value="">选择其他项目</option>' + projects.filter(project => project.id !== id).map(project => `<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('');
       this.dialog.querySelector('#team-project-name').textContent = projects.find(project => project.id === id)?.name || '当前项目';
-      this.render(); this.dialog.showModal();
+      this.dialog.querySelector('#team-generation-goal').value = this.goal || '';
+      this.render(); this.dialog.showModal(); this.renderGeneration();
+      if (this.generation?.status === 'running') this.pollGeneration(version);
+      else if (generate) await this.generateTeam();
     } catch (error) { this.toast(error.message); }
+  }
+  // renderGeneration 展示持久化状态，生成期间锁定团队草稿以避免覆盖手工编辑。
+  renderGeneration() {
+    const running = this.startingGeneration || this.generation?.status === 'running';
+    this.dialog.querySelector('#team-edit-fields').disabled = running;
+    this.dialog.querySelector('#team-generation-goal').disabled = running;
+    this.dialog.querySelector('#generate-team').disabled = running || this.saving;
+    this.dialog.querySelector('#cancel-team-generation').hidden = !running;
+    this.dialog.querySelector('#load-team-proposal').hidden = this.generation?.status !== 'ready' || this.generation.stale || this.appliedId === this.generation.id;
+    this.dialog.querySelector('#undo-team-proposal').hidden = !this.beforeGeneration || running;
+    this.dialog.querySelector('#team-generation-status').textContent = running ? 'God 正在分析目标并搭建团队，可关闭页面，稍后回来查看。' : this.generation?.stale ? '目标或团队已更新，可以根据当前配置重新生成。' : this.generation?.status === 'ready' ? `${this.appliedId === this.generation.id ? '方案已载入草稿，可调整并保存。' : '已有生成方案，可载入后调整。'}\n${this.generation.result.summary}` : this.generation?.error || '';
+  }
+  // generateTeam 提交目标和背景，结果只载入草稿，由用户保存后生效。
+  async generateTeam() {
+    if (this.saving || this.startingGeneration || this.generation?.status === 'running') return;
+    const version = this.openVersion, id = this.projectId;
+    this.startingGeneration = true; this.renderGeneration();
+    try {
+      const value = await this.api(`/projects/${id}/team-generation`, { goal: this.dialog.querySelector('#team-generation-goal').value, context: this.dialog.querySelector('#project-context').value, language: this.dialog.querySelector('#project-language').value });
+      if (version !== this.openVersion) return;
+      this.generation = value; this.autoApplyId = value.id; this.pollGeneration(version);
+    } catch (error) { this.toast(error.message); }
+    finally { this.startingGeneration = false; if (version === this.openVersion) this.renderGeneration(); }
+  }
+  // pollGeneration 轮询当前对话框所属任务，关闭或切换项目后忽略旧响应。
+  async pollGeneration(version) {
+    clearTimeout(this.pollTimer);
+    try {
+      const value = await this.api(`/projects/${this.projectId}/team-generation`);
+      if (version !== this.openVersion || !this.dialog.open) return;
+      this.generation = value;
+      if (value?.status === 'ready' && value.id === this.autoApplyId && !value.stale) { this.autoApplyId = null; this.applyProposal(); }
+      this.renderGeneration();
+      if (value?.status !== 'running') return;
+    } catch (error) { if (version !== this.openVersion || !this.dialog.open) return; this.toast(error.message); }
+    this.pollTimer = setTimeout(() => this.pollGeneration(version), 1500);
+  }
+  // applyProposal 保留原草稿供撤回，生成的员工继续使用原有编辑与保存流程。
+  applyProposal() {
+    if (this.generation?.status !== 'ready' || this.generation.stale) return;
+    this.beforeGeneration = { employees: structuredClone(this.employees), context: this.dialog.querySelector('#project-context').value, language: this.dialog.querySelector('#project-language').value };
+    this.dialog.querySelector('#project-context').value = this.generation.result.context;
+    this.dialog.querySelector('#project-language').value = this.generation.result.language;
+    this.employees = structuredClone(this.generation.result.employees); this.appliedId = this.generation.id;
+    this.selected = this.employees[0]?.id; this.render(); this.renderGeneration();
   }
   // copyTeam 复制为独立员工编号，只有保存后生效，不复制会话或项目上下文。
   async copyTeam() {
@@ -76,7 +141,7 @@ export class EmployeeManager {
     const button = this.dialog.querySelector('#copy-team'); button.disabled = true;
     try {
       const value = await this.api(`/projects/${source}/employees`);
-      if (target !== this.projectId || !this.dialog.open) return;
+      if (target !== this.projectId || !this.dialog.open || this.startingGeneration || this.generation?.status === 'running') return;
       this.employees = value.employees.map(employee => { const { role, ...config } = employee; return { ...config, id: crypto.randomUUID() }; });
       this.selected = this.employees[0]?.id; this.render(); this.toast('已复制到当前草稿，保存后成为本项目独立团队');
     } catch (error) { this.toast(error.message); }
@@ -113,10 +178,10 @@ export class EmployeeManager {
   }
   // save 提交项目上下文与团队；服务端拒绝运行中修改，错误保留草稿。
   async save() {
-    if (this.saving) return; this.saving = true;
+    if (this.saving || this.startingGeneration || this.generation?.status === 'running') return; this.saving = true; this.renderGeneration();
     const button = this.dialog.querySelector('[type=submit]'); button.disabled = true;
     try { await this.api(`/projects/${this.projectId}/employees`, { employees: this.employees, context: this.dialog.querySelector('#project-context').value, language: this.dialog.querySelector('#project-language').value }); this.dialog.close(); await this.refresh(); this.toast('项目团队已保存'); }
     catch (error) { this.dialog.querySelector('#employee-error').textContent = error.message; }
-    finally { this.saving = false; button.disabled = false; }
+    finally { this.saving = false; button.disabled = false; this.renderGeneration(); }
   }
 }

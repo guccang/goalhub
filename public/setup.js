@@ -2,8 +2,8 @@
 import { attachModelPicker } from './model-picker.js';
 export class SetupFlow {
   // constructor 绑定向导控件，轮询只更新测试结果，不覆盖正在编辑的设置。
-  constructor({ api, selectProject, refresh, toast }) {
-    Object.assign(this, { api, selectProject, refresh, toast });
+  constructor({ api, selectProject, refresh, toast, buildTeam }) {
+    Object.assign(this, { api, selectProject, refresh, toast, buildTeam });
     this.form = document.querySelector('#host-form');
     this.modelPicker = attachModelPicker(this.form.elements.model, api, () => this.form.elements.hostType.value); this.dirty = true; this.pending = false;
     this.form.addEventListener('input', () => { this.dirty = true; this.paint(); });
@@ -25,7 +25,7 @@ export class SetupFlow {
     this.find('#back-host').addEventListener('click', () => this.openHost(true).catch(error => this.error(error)));
     this.find('#host-dialog').addEventListener('cancel', event => { event.preventDefault(); this.closeHost(); });
     this.find('#create-form').addEventListener('submit', event => { event.preventDefault(); this.create(event.currentTarget); });
-    this.find('#create-form [name=configureTeam]').addEventListener('change', event => { this.find('#create-form [type=submit]').textContent = event.target.checked ? '保存需求并配置员工' : '生成拆解预览'; });
+    this.find('#create-form').addEventListener('change', () => { const form = this.find('#create-form'); form.querySelector('[type=submit]').textContent = form.elements.generateTeam.checked ? '保存需求并搭建团队' : form.elements.configureTeam.checked ? '保存需求并配置员工' : '生成拆解预览'; });
     setInterval(() => { if ((this.find('#create-dialog').open || this.find('#host-dialog').open) && !this.polling && !this.pending) this.poll().catch(error => this.error(error)); }, 1500);
   }
   // find 读取向导内固定元素。
@@ -151,10 +151,11 @@ export class SetupFlow {
       if (!this.passed()) throw new Error('请先在全局宿主设置中通过连通性测试');
       const values = Object.fromEntries(new FormData(form));
       const hostTestId = this.state.tests.find(test => test.revision === this.state.revision).id;
-      const configureTeam = values.configureTeam === 'on';
-      const created = await this.api(`/projects/${this.projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
+      const configureTeam = values.configureTeam === 'on', generateTeam = values.generateTeam === 'on';
+      const created = await this.api(`/projects/${this.projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
       this.find('#create-dialog').close(); form.reset(); button.textContent = '生成拆解预览'; await this.selectProject(created.id); await this.refresh();
-      if (configureTeam) { document.querySelector('#mode-office').click(); document.querySelector('#manage-employees').click(); this.toast('请配置员工，保存后点击继续执行开始规划'); }
+      if (generateTeam) { await this.buildTeam(created.id); }
+      else if (configureTeam) { document.querySelector('#mode-office').click(); document.querySelector('#manage-employees').click(); this.toast('请配置员工，保存后点击继续执行开始规划'); }
       else this.toast('正在生成拆解预览');
     } catch (error) { this.find('#create-error').textContent = error.message; }
     finally { this.creating = false; this.paint(); }
