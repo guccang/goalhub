@@ -83,7 +83,17 @@
     <div class="dialog-header"><div><h2>全局宿主配置与测试</h2><p>所有目标共用此配置与测试结果。配置一次，通过后可用于多个目标。</p></div><button type="button" class="icon-button" data-action="close-host" aria-label="关闭宿主设置">×</button></div>
     <section id="setup-host">
       <form id="host-form">
-        <div class="form-grid"><label>Agent 宿主<select name="hostType"><option value="codex">Codex</option><option value="claudecode">Claude Code</option><option value="deepseek-harness">DeepSeek Harness</option><option value="opencode">OpenCode</option></select></label><label>模型名称<input name="model" maxlength="150" placeholder="留空使用宿主默认模型"></label></div>
+        <input type="hidden" name="hostType" value="codex">
+        <div class="host-overview-heading"><h3>Agent 宿主</h3><span>点击宿主配置与测试</span></div>
+        <div id="host-cards" class="host-cards" role="group" aria-label="所有 Agent 宿主状态">
+          <button type="button" class="host-card" data-host="codex" aria-pressed="true"><span class="host-card-top"><strong>Codex</strong><span class="host-active"></span></span><span class="host-health">读取状态…</span><small class="host-detail">ChatGPT / API Key</small></button>
+          <button type="button" class="host-card" data-host="claudecode" aria-pressed="false"><span class="host-card-top"><strong>Claude Code</strong><span class="host-active"></span></span><span class="host-health">读取状态…</span><small class="host-detail">官方 / 第三方 API</small></button>
+          <button type="button" class="host-card" data-host="deepseek-harness" aria-pressed="false"><span class="host-card-top"><strong>DeepSeek Harness</strong><span class="host-active"></span></span><span class="host-health">读取状态…</span><small class="host-detail">DeepSeek API</small></button>
+          <button type="button" class="host-card" data-host="opencode" aria-pressed="false"><span class="host-card-top"><strong>OpenCode</strong><span class="host-active"></span></span><span class="host-health">读取状态…</span><small class="host-detail">多供应商 / API Key</small></button>
+        </div>
+        <p class="setup-note">可用状态依据最近一次连通性测试；配置变更后需重新测试。</p>
+        <h3 id="host-config-title">Codex 配置</h3>
+        <label>模型名称<input name="model" maxlength="150" placeholder="留空使用宿主默认模型"></label>
         <label id="codex-auth-mode">Codex 认证方式<select name="authMode"><option value="local">沿用本机登录</option><option value="device">无头登录（ChatGPT 设备码）</option><option value="api">API Key 登录</option></select></label>
         <p id="host-auth-note" class="setup-note">选择认证方式后保存，并测试连通性。</p>
         <section id="codex-device" hidden aria-label="Codex 无头登录"><p>点击获取设备码后，在官方页面完成授权。服务器无需打开浏览器。</p><div class="setup-actions"><button type="button" class="secondary" id="login-host">获取设备码并登录</button><button type="button" class="secondary" id="cancel-login" hidden>取消登录</button></div><p id="login-status" role="status"></p><p id="device-authorization" hidden><a id="device-url" target="_blank" rel="noopener noreferrer">打开 OpenAI 官方授权页面</a><br>设备码：<strong id="device-code"></strong></p></section>

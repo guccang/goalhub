@@ -5,7 +5,14 @@ export class SetupFlow {
     Object.assign(this, { api, selectProject, refresh, toast });
     this.form = document.querySelector('#host-form'); this.dirty = true; this.pending = false;
     this.form.addEventListener('input', () => { this.dirty = true; this.paint(); });
-    this.form.elements.hostType.addEventListener('change', () => this.credentials().catch(error => this.error(error)));
+    this.find('#host-cards').addEventListener('click', event => {
+      const card = event.target.closest('[data-host]');
+      if (!card || card.disabled || card.dataset.host === this.form.elements.hostType.value) return;
+      this.form.elements.hostType.value = card.dataset.host;
+      this.form.elements.model.value = this.state?.hosts?.find(host => host.hostType === card.dataset.host)?.model || '';
+      this.dirty = true; this.find('#host-error').textContent = '';
+      this.credentials().catch(error => this.error(error));
+    });
     this.form.elements.authMode.addEventListener('change', () => this.paint());
     this.find('#login-host').addEventListener('click', () => this.login().catch(error => this.error(error)));
     this.find('#cancel-login').addEventListener('click', () => this.api('/host/login/cancel', {}).then(() => this.poll()).catch(error => this.error(error)));
@@ -63,6 +70,19 @@ export class SetupFlow {
     const latest = this.state?.tests?.find(test => test.revision === this.state.revision);
     const running = latest?.status === 'running' || this.state?.auth?.status === 'logging_in';
     const type = this.form.elements.hostType.value, mode = this.form.elements.authMode.value;
+    // 卡片始终展示全部宿主，区分正在编辑、当前全局选择与真实连接结果。
+    const labels = { passed: '可用 · 测试通过', failed: '不可用 · 测试失败', running: '正在测试', interrupted: '测试中断', stale: '配置已变更 · 待重测', untested: '未测试 · 状态未知' };
+    this.find('#host-cards').querySelectorAll('[data-host]').forEach(card => {
+      const host = this.state?.hosts?.find(item => item.hostType === card.dataset.host);
+      const status = host?.status || 'untested';
+      card.setAttribute('aria-pressed', String(card.dataset.host === type));
+      card.disabled = this.pending || running || this.loading;
+      card.dataset.status = status;
+      card.querySelector('.host-health').textContent = labels[status] || '状态未知';
+      card.querySelector('.host-active').textContent = host?.active ? '全局当前' : '';
+      card.title = host?.testedAt ? `最近测试：${new Date(host.testedAt).toLocaleString()}` : '尚未进行真实连通性测试';
+      if (card.dataset.host === type) this.find('#host-config-title').textContent = card.querySelector('strong').textContent + ' 配置';
+    });
     this.find('#codex-auth-mode').hidden = type !== 'codex';
     this.find('#codex-device').hidden = type !== 'codex' || mode !== 'device';
     this.find('#host-credentials').hidden = type === 'codex' && mode !== 'api';

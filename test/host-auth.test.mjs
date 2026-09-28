@@ -84,3 +84,23 @@ test('设备码登录期间禁止保存、测试和创建目标，登录使旧�
   const pending = setup.auth.job.promise; setup.auth.cancel(); await pending;
   assert.equal(setup.auth.snapshot().status, 'idle');
 });
+
+// 各宿主状态按自己的配置版本判断，其他宿主的记录数量不会覆盖其结果。
+test('全部宿主状态独立展示，配置变更与跨宿主切换不会误报可用', async t => {
+  const f = await fixture(t), setup = new HostSetup(f.store, f.runtime);
+  let state = await setup.snapshot();
+  assert.equal(state.hosts.length, 4); assert.ok(state.hosts.every(host => host.status === 'untested'));
+  await setup.save({ hostType: 'codex', model: 'codex-model' });
+  const revision = setup.profile().revision;
+  f.store.db.prepare('INSERT INTO host_tests(id,revision,host_type,model,status,input,created_at) VALUES(?,?,?,?,?,?,?)').run('codex-test', revision, 'codex', 'codex-model', 'passed', 'probe', new Date().toISOString());
+  await setup.save({ hostType: 'claudecode', model: 'vendor/model' });
+  for (let i = 0; i < 12; i++) f.store.db.prepare('INSERT INTO host_tests(id,revision,host_type,model,status,input,created_at) VALUES(?,?,?,?,?,?,?)').run('claude-' + i, setup.profile().revision, 'claudecode', 'vendor/model', 'failed', 'probe', new Date().toISOString());
+  state = await setup.snapshot();
+  assert.equal(state.hosts.find(host => host.hostType === 'codex').status, 'passed');
+  assert.equal(state.hosts.find(host => host.hostType === 'codex').active, false);
+  assert.equal(state.hosts.find(host => host.hostType === 'claudecode').status, 'failed');
+  assert.equal(state.hosts.find(host => host.hostType === 'claudecode').model, 'vendor/model');
+  await setup.save({ hostType: 'codex', model: 'changed' });
+  state = await setup.snapshot(); assert.equal(state.hosts.find(host => host.hostType === 'codex').status, 'stale');
+  await setup.close();
+});

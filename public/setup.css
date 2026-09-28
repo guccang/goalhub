@@ -33,3 +33,21 @@ dialog::backdrop { backdrop-filter:none; }
 #device-url { color:#244eaa; }
 #host-auth-history { font:inherit; font-size:14px; white-space:pre-wrap; max-height:150px; overflow:auto; }
 .setup-dialog .inline-choice input { min-height:auto; }
+/* 全部宿主平铺展示，状态同时使用文字和颜色，窄屏保持完整可读。 */
+.host-overview-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:16px 0 10px; }
+.host-overview-heading h3,#host-config-title { font-size:16px; margin:0; }
+.host-overview-heading>span { font-size:13px; color:#52647a; }
+.host-cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.setup-dialog .host-card { display:flex; flex-direction:column; align-items:stretch; gap:9px; padding:15px; text-align:left; border:1px solid #ccd5e3; border-radius:8px; background:#fff; color:#263b53; min-width:0; }
+.setup-dialog .host-card[aria-pressed="true"] { border-color:#345fea; background:#f1f5ff; box-shadow:inset 3px 0 #345fea; }
+.host-card:focus-visible { outline:3px solid #345fea; outline-offset:2px; }
+.host-card-top { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px; }
+.host-active { font-size:11px; color:#345fea; }
+.host-health { font-size:14px; color:#59697e; }
+.host-health::before { content:'●'; margin-right:7px; }
+.host-card[data-status="passed"] .host-health { color:#207346; }
+.host-card[data-status="failed"] .host-health { color:#ab3434; }
+.host-card[data-status="running"] .host-health { color:#244eaa; }
+.host-detail { font-size:12px; color:#52647a; }
+#host-config-title { border-top:1px solid #e1e7f0; padding-top:20px; margin:20px 0 14px; }
+@media(max-width:480px) { .host-cards { grid-template-columns:1fr; }.host-overview-heading { align-items:flex-start; flex-direction:column; } }
