@@ -2,6 +2,7 @@
 import { ProjectsPanel } from './projects.js';
 import { SetupFlow } from './setup.js';
 import { OfficeView } from './office-view.js';
+import { DeliveryPanel } from './delivery.js';
 import { GodPanel } from './god.js';
 import { EmployeeManager } from './employees.js';
 // $ 获取工作台内的一个 DOM 元素。
@@ -26,6 +27,7 @@ const panels = new ProjectsPanel({ api, selectProject, selectGoal, refresh, toas
 
 // selectGoal 只切换查看目标，不改变项目当前执行目标。
 async function selectGoal(id) { selectedGoal = id; historyMode = false; eventProject = ''; questionsKey = ''; await refresh(); }
+const deliveryPanel = new DeliveryPanel({ api, refresh, toast });
 const god = new GodPanel({ api, toast });
 const employees = new EmployeeManager({ api, refresh, toast });
 
@@ -86,7 +88,7 @@ function renderQuestions() {
 function renderProject() {
   $('#empty').hidden = !!project; $('#project').hidden = !project;
   if (!project) { office.setVisible(false); return; }
-  panels.render(project); setup.syncProject(project);
+  panels.render(project); setup.syncProject(project); deliveryPanel.render(project);
   office.update(project, busy || !!project.historical || !project.active_goal_id); office.setVisible(true);
   $('#office-view').hidden = false;
   if (recordsOwner) recordsOwner = project.office?.actors.find(actor => actor.id === recordsOwner.id) || null;

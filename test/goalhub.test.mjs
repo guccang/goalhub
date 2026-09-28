@@ -52,6 +52,8 @@ function fixture(t, behavior = {}) {
       // finish 模拟一次真实开发产出或结构化评估回复。
       async function finish() {
         try {
+          // 此夹具交付纯文本文件，明确声明源码交付；Web 与安装包使用独立的真实进程测试。
+          if (role === 'developer') writeFileSync(join(options.cwd, 'goalhub.delivery.json'), JSON.stringify({ kind: 'source', instructions: '这是纯文本结果文件，读取 answer.txt 并核对值为 42，无需安装。' }));
           const custom = behavior[role] ? await behavior[role]({ options, count, counts, directory }) : undefined;
           if (custom === 'hold' || finished) return;
           let reply = custom;
@@ -89,6 +91,19 @@ function fixture(t, behavior = {}) {
 }
 
 // 完成必须依赖真实断言、最终评估和合并成功，同时保留全部运行记录。
+test('交付配置缺失触发修复，补齐真实交付验证后才能完成', async t => {
+  const f = fixture(t, {
+    // developer 第一轮刻意遗漏交付文件，第二轮沿用默认夹具补齐。
+    developer({ options, count }) { if (count === 1) rmSync(join(options.cwd, 'goalhub.delivery.json')); },
+  });
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '交付修复未结束', 30000);
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.counts.developer, 2);
+  assert.equal(f.orchestrator.delivery.snapshot(f.project.id).release.status, 'ready');
+  assert.ok(f.store.tasks(f.project.id).some(task => task.title === '补齐可使用的项目交付'));
+});
+
 test('同项目两次迭代保留首轮证据，重启后协调者及开发会话续接且读取已合并代码', async t => {
   const f = fixture(t, {
     // planner 验证第二个目标确实看到首轮代码，并模拟可去重的宿主统计。
