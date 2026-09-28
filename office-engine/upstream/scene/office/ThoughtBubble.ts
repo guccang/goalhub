@@ -86,7 +86,7 @@ export class ThoughtBubble {
         fontSize: FONT_SIZE,
         fontWeight: 'bold',
         fill: TEXT_COLOR,
-        fontFamily: 'GoalHub QiHei',
+        fontFamily: ['GoalHub QiHei', 'Yu Gothic', 'Malgun Gothic', 'sans-serif'],
         align: 'left',
         wordWrap: true,
         wordWrapWidth: WRAP_WIDTH,

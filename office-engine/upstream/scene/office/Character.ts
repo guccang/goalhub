@@ -1,4 +1,6 @@
 // 上游办公室原始实现，保留 MIT 许可；本地适配详见 office-engine/README.md。
+import { renderSpeech } from '../../../speech';
+import { useStore } from '../../../store';
 import { Container, Graphics, Texture } from 'pixi.js';
 import { CharacterSprite, type Direction, type AnimState } from './CharacterSprite';
 import { findPath } from './pathfinding';
@@ -367,7 +369,7 @@ export class Character {
    *  Empty text renders an animated "…" (thinking); `tool` adds a small glyph. */
   // showThought：保留原版办公室的绘制、交互或资源管理行为。
   showThought(text: string, tool?: string): void {
-    this.thoughtBubble.show(text, tool);
+    this.thoughtBubble.show(renderSpeech(text, useStore.getState().agents.find(agent => agent.id === this.agentId)?.language), tool);
   }
 
   /** Fade the thought cloud out after a short linger — the agent went quiet. */

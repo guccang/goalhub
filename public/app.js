@@ -2,6 +2,7 @@
 import { ProjectsPanel } from './projects.js';
 import { SetupFlow } from './setup.js';
 import { OfficeView } from './office-view.js';
+import { EmployeeManager } from './employees.js';
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
 const labels = { ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
@@ -13,6 +14,7 @@ let events = [], search = '', kind = '', questionsKey = '', toastTimer, eventPro
 const markupCache = new WeakMap();
 let mode = localStorage.getItem('goalhub.view') === 'dashboard' ? 'dashboard' : 'office';
 const office = new OfficeView({ onAction: action, onError: toast,
+  onManage: () => employees.open(selected),
   // sendSteer 使用提交时的项目编号，避免切换项目后把指令发给另一个目标。
   onSteer: async (id, content) => { await api(`/projects/${id}/steer`, { content }); await refresh(); toast('补充指令已记录，正在继续执行'); },
 });
@@ -22,6 +24,7 @@ const panels = new ProjectsPanel({ api, selectProject, selectGoal, refresh, toas
 
 // selectGoal 只切换查看目标，不改变项目当前执行目标。
 async function selectGoal(id) { selectedGoal = id; historyMode = false; eventProject = ''; questionsKey = ''; setMode('dashboard'); await refresh(); }
+const employees = new EmployeeManager({ api, refresh, toast });
 
 // setMode 在办公室和任务记录之间切换，不改变项目的执行状态。
 function setMode(value) {
@@ -228,8 +231,10 @@ document.addEventListener('click', async (event) => {
     }
     if (button.dataset.run) {
       const run = await api(`/runs/${button.dataset.run}`);
+      // 历史轮次展示当时的执行配置，避免员工改名或换模型后混淆记录。
+      const executor = run.executor ? JSON.parse(run.executor) : null;
       $('#run-title').textContent = roles[run.role] || run.role;
-      $('#run-meta').textContent = `${labels[run.status] || run.status} · ${date(run.created_at)}${run.session_id ? ` · 会话 ${run.session_id}` : ''}`;
+      $('#run-meta').textContent = `${labels[run.status] || run.status} · ${date(run.created_at)}${executor ? ` · 员工 ${executor.name} · ${hostLabels[executor.hostType] || executor.hostType} · 模型 ${executor.model || '默认'} · 思考 ${executor.reasoningEffort || '默认'} · 语言 ${executor.effectiveLanguage || '历史未记录'}` : ''}${run.session_id ? ` · 会话 ${run.session_id}` : ''}`;
       $('#run-input').textContent = run.input; $('#run-output').textContent = run.output || '运行中，流事件可在步骤记录中查询。';
       $('#run-dialog').showModal();
     }

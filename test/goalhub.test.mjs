@@ -1,4 +1,5 @@
 // 本文件通过真实 SQLite/Git 和可控模拟宿主验证持续执行、失败修复、暂停、问答与 HTTP 边界。
+import { effectiveLanguage, validateLanguage } from '../lib/languages.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
@@ -10,6 +11,7 @@ import { Orchestrator } from '../lib/orchestrator.mjs';
 import { createApp } from '../lib/app.mjs';
 import { validatePlan } from '../lib/protocol.mjs';
 import { Runtime } from '../lib/runtime.mjs';
+import { team, validateTeam, assignEmployee, requireTeam } from '../lib/employees.mjs';
 import { buildOfficeSnapshot } from '../lib/office.mjs';
 import { sceneFrameBufs, SCENE_W, SCENE_H } from '../public/vendor/munder-difflin/portrait-art.js';
 
@@ -489,4 +491,102 @@ test('自动确认模式生成计划后持续执行并记录确认', async (t) =
   f.orchestrator.start(project.id); await waitUntil(() => !f.orchestrator.controls.has(project.id), '自动执行未完成');
   assert.equal(f.store.project(project.id).status, 'completed');
   assert.ok(f.store.events(project.id, { kind: 'plan.approved' }).some(event => event.content.includes('自动确认')));
+});
+
+// 员工配置必须影响真实调度参数，并随轮次留存，不能只是办公室外观。
+test('项目员工宿主模型思考强度传入执行并保留审计快照', async t => {
+  const f = fixture(t), employees = team(f.project);
+  employees[0].model = 'planning-model'; employees[0].reasoningEffort = 'high';
+  employees[1].name = '前端工程师'; employees[1].hostType = 'claudecode'; employees[1].model = 'vendor/frontend'; employees[1].instructions = '优先保证可访问性';
+  f.store.saveEmployees(f.project.id, validateTeam(employees));
+  f.orchestrator.start(f.project.id); await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '员工执行未完成');
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.calls.find(call => call.role === 'planner').reasoningEffort, 'high');
+  assert.equal(f.calls.find(call => call.role === 'planner').model, 'planning-model');
+  const developer = f.calls.find(call => call.role === 'developer');
+  assert.equal(developer.hostType, 'claudecode'); assert.equal(developer.model, 'vendor/frontend'); assert.match(developer.input, /优先保证可访问性/);
+  const run = f.store.employeeRun(f.project.id, employees[1]);
+  assert.equal(JSON.parse(run.executor).name, '前端工程师');
+  f.store.saveEmployees(f.project.id, employees.filter(employee => employee.role !== 'developer'));
+  assert.ok(f.store.run(run.id)); assert.throws(() => requireTeam(f.store.project(f.project.id)), /软件工程师/);
+  const other = f.store.create({ name: '另一项目', goal: '独立设置', settings: f.project.settings });
+  assert.equal(team(other)[1].hostType, 'codex');
+});
+
+// 同职责分配轮换，但会话只在员工与完整配置相同的情况下复用。
+test('员工轮换与模型切换隔离会话，重复编号和不支持的参数被拒绝', t => {
+  const f = fixture(t), employees = team(f.project);
+  employees.push({ ...employees[1], id: 'second-dev', name: '第二开发员工' });
+  f.store.saveEmployees(f.project.id, validateTeam(employees));
+  const first = assignEmployee(f.store, f.store.project(f.project.id), 'developer');
+  const run = f.store.beginRun(f.project.id, 'developer', '任务', first); f.store.session(run, 'session-first'); f.store.finishRun(run, 'completed', 'done');
+  const second = assignEmployee(f.store, f.store.project(f.project.id), 'developer'); assert.equal(second.id, 'second-dev');
+  assert.equal(f.store.employeeSession(f.project.id, 'developer', second.configKey), '');
+  assert.equal(f.store.employeeSession(f.project.id, 'developer', first.configKey), 'session-first');
+  employees.splice(-1); employees[1].model = 'another-model'; f.store.saveEmployees(f.project.id, employees);
+  const changed = assignEmployee(f.store, f.store.project(f.project.id), 'developer');
+  assert.notEqual(changed.configKey, first.configKey); assert.equal(f.store.employeeSession(f.project.id, 'developer', changed.configKey), '');
+  assert.throws(() => validateTeam([...employees, employees[0]]), /重复/);
+  assert.throws(() => validateTeam([{ ...employees[0], hostType: 'claudecode', reasoningEffort: 'high' }]), /仅 Codex/);
+});
+
+// HTTP 层必须拒绝运行中修改与跨源写入，暂停后可独立保存项目员工。
+test('员工管理接口拒绝运行中变更并在暂停后持久化', async t => {
+  const f = fixture(t), server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const url = `http://127.0.0.1:${server.address().port}/api/projects/${f.project.id}/employees`;
+  const original = await (await fetch(url)).json(); assert.equal(original.employees.length, 4);
+  original.employees[1].model = 'project-specific';
+  const request = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employees: original.employees }) };
+  f.orchestrator.controls.set(f.project.id, {});
+  assert.equal((await fetch(url, request)).status, 400); f.orchestrator.controls.delete(f.project.id);
+  assert.equal((await fetch(url, { ...request, headers: { ...request.headers, Origin: 'https://evil.example' } })).status, 403);
+  assert.equal((await fetch(url, request)).status, 200);
+  assert.equal((await (await fetch(url)).json()).employees[1].model, 'project-specific');
+  assert.ok(f.store.events(f.project.id).some(event => event.kind === 'team.updated'));
+});
+
+// 验证继承、覆盖、持久化、运行快照与提示词使用同一套语言规则。
+test('项目语言和员工母语分别保存，真实调度输入携带有效语言', async t => {
+  const f = fixture(t), employees = team(f.project);
+  assert.equal(effectiveLanguage(f.project), 'zh-CN');
+  employees[1].nativeLanguage = 'ja'; employees[3].nativeLanguage = 'ko';
+  f.store.saveEmployees(f.project.id, validateTeam(employees), 'en');
+  const project = f.store.project(f.project.id);
+  assert.equal(effectiveLanguage(project, employees[0]), 'en');
+  assert.equal(effectiveLanguage(project, employees[1]), 'ja');
+  const before = assignEmployee(f.store, project, 'developer').configKey;
+  f.store.saveEmployees(f.project.id, validateTeam(employees), 'zh-CN');
+  assert.notEqual(assignEmployee(f.store, f.store.project(f.project.id), 'developer').configKey, before);
+  f.store.saveEmployees(f.project.id, validateTeam(employees), 'en');
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '语言配置执行未结束');
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.match(f.calls.find(call => call.role === 'planner').input, /English \(en\)/);
+  assert.match(f.calls.find(call => call.role === 'developer').input, /日本語 \(ja\)/);
+  assert.match(f.calls.find(call => call.role === 'final').input, /한국어 \(ko\)/);
+  assert.match(f.calls.find(call => call.role === 'developer').input, /JSON 字段名/);
+  const runs = f.store.detail(f.project.id).runs;
+  assert.equal(JSON.parse(f.store.run(runs.find(run => run.role === 'developer').id).executor).effectiveLanguage, 'ja');
+  const snapshot = buildOfficeSnapshot(f.store, f.orchestrator, f.project.id);
+  assert.equal(snapshot.actors.find(actor => actor.id === 'developer').effectiveLanguage, 'ja');
+  assert.throws(() => validateTeam([{ ...employees[0], nativeLanguage: 'invalid' }]), /语言/);
+  assert.throws(() => validateLanguage(''), /语言/);
+});
+// HTTP 配置只允许支持的语言，并保证非法输入不会部分修改员工。
+test('语言接口保存四种语言且拒绝非法配置', async t => {
+  const f = fixture(t), server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const url = `http://127.0.0.1:${server.address().port}/api/projects/${f.project.id}/employees`;
+  const original = await (await fetch(url)).json();
+  assert.equal(original.language, 'zh-CN'); assert.equal(Object.keys(original.languages).length, 4);
+  for (const language of ['en', 'ja', 'ko', 'zh-CN']) {
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employees: original.employees, language }) });
+    assert.equal(response.status, 200);
+    assert.equal((await (await fetch(url)).json()).language, language);
+  }
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employees: [], language: 'xx' }) });
+  assert.equal(response.status, 400); assert.equal(team(f.store.project(f.project.id)).length, 4);
 });

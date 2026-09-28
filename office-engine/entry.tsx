@@ -1,4 +1,5 @@
 // 本文件把完整 Munder Difflin 办公室挂载到 GoalHub，并保持现有控制组件接口。
+import { speechToken } from './speech';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { OfficeFloor } from './upstream/scene/office/OfficeFloor';
@@ -35,8 +36,10 @@ export class OfficeScene {
   update(snapshot: any, reconnect = false) {
     if (snapshot.projectId !== this.projectId) { this.projectId = snapshot.projectId; this.lastEvent = null; setState({ agents: [] }); this.mount(); }
     const accents = ['coral', 'sky', 'lemon', 'mint'];
+    // 经理办公室只有一个主座位，其他同职责员工使用普通工位。
+    const managerId = snapshot.actors.find((actor: any) => actor.role === 'planner' && actor.enabled)?.id;
     // 只有员工生成像素人物；测试命令设施不会变成人物或触发员工工作动画。
-    setState({ agents: snapshot.actors.filter((actor: any) => actor.kind !== 'facility').map((actor: any, index: number) => ({ id: actor.id, character: actor.character, isGod: actor.id === 'planner', accent: accents[index], status: actor.state === 'paused' ? 'waiting' : actor.state === 'error' ? 'blocked' : actor.state, action: `${actor.name} · ${actor.hostType || ''} · ${actor.activity}`, carrying: '', lastPrompt: '' })) });
+    setState({ agents: snapshot.actors.filter((actor: any) => actor.kind !== 'facility').map((actor: any, index: number) => ({ id: actor.id, language: actor.effectiveLanguage, character: actor.character, isGod: actor.id === managerId, accent: accents[index % accents.length], status: actor.state === 'paused' ? 'waiting' : actor.state === 'error' ? 'blocked' : actor.state, action: speechToken(`activity.${actor.state === 'working' ? actor.role : ['success', 'paused', 'blocked', 'error'].includes(actor.state) ? actor.state : 'idle'}`), carrying: '', lastPrompt: '' })) });
     for (const event of snapshot.messages) {
       if (this.lastEvent !== null && event.id > this.lastEvent && !reconnect && this.visible && this.motion && this.connected) goalhubBridge.emit({ from: event.from, targets: [event.to], act: event.kind.includes('completed') ? 'done' : event.kind === 'input.required' ? 'query' : 'inform', needsHuman: event.to === 'human' });
     }

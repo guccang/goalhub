@@ -10,8 +10,10 @@ export const goalhubBridge = {
   // hiveTasks 将真实任务和用户问题转换为原版纸条看板格式。
   async hiveTasks() {
     const project = this.project;
-    const tasks = (project?.tasks || []).map((task: any) => ({ id: task.id, status: task.status === 'done' ? 'done' : task.status === 'running' ? 'doing' : project.status === 'blocked' ? 'blocked' : 'todo', assignee: 'developer' }));
-    for (const question of project?.questions || []) if (question.answer === null) tasks.push({ id: question.id, status: 'blocked', assignee: 'planner', humanQA: [{ q: question.prompt, a: '' }] });
+    const workers = project?.office?.actors?.filter((actor: any) => actor.role === 'developer' && actor.enabled) || [];
+    const assignee = workers.find((actor: any) => actor.state === 'working')?.id || workers[0]?.id || 'developer';
+    const tasks = (project?.tasks || []).map((task: any) => ({ id: task.id, status: task.status === 'done' ? 'done' : task.status === 'running' ? 'doing' : project.status === 'blocked' ? 'blocked' : 'todo', assignee }));
+    for (const question of project?.questions || []) if (question.answer === null) tasks.push({ id: question.id, status: 'blocked', assignee: project?.office?.questionOwner || project?.office?.actors?.find((actor: any) => actor.role === 'planner' && actor.enabled)?.id || 'planner', humanQA: [{ q: question.prompt, a: '' }] });
     return { tasks };
   },
   // onHiveMessage 为原信封动画订阅真实的任务交接事件。

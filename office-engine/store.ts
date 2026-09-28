@@ -1,7 +1,7 @@
 // 本文件将上游场景订阅接口适配到 GoalHub 快照，不创建虚构的 Agent 或任务。
 import { useSyncExternalStore } from 'react';
 
-export type Agent = { id: string; character: string; isGod: boolean; accent: string; status: string; action: string; carrying: string; lastPrompt: string };
+export type Agent = { id: string; language?: string; character: string; isGod: boolean; accent: string; status: string; action: string; carrying: string; lastPrompt: string };
 type State = { agents: Agent[]; selectedId: string; officeTheme: string; fullscreenAgentId: string | null; ideOpen: boolean; select: (id: string) => void; requestCommandCenterTab: (name: string) => void };
 const listeners = new Set<(state: State, previous: State) => void>();
 let state: State = { agents: [], selectedId: 'developer', officeTheme: 'office', fullscreenAgentId: null, ideOpen: false, select() {}, requestCommandCenterTab() {} };
