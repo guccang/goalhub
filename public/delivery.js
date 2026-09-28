@@ -26,9 +26,9 @@ export class DeliveryPanel {
     this.projectId = project.id; this.releaseId = release?.id;
     const disabled = this.pending ? 'disabled' : '', statuses = { building: '构建中', verified: '交付验证通过，等待源码合并', ready: '可使用', failed: '交付失败' };
     const previews = { stopped: '未启动', interrupted: '服务重启后已中断', starting: '正在启动', running: '运行中', failed: '启动失败或已退出' };
-    this.panel.innerHTML = `<div class="delivery-heading"><h2>项目交付</h2><span>${release ? `${escape(kinds[release.kind] || '交付')} · ${escape(statuses[release.status])}` : '尚未生成交付'}</span></div>
-      <p>${release ? escape(release.instructions) : '完成前会验证预览或安装包。已有项目可补充交付设置后构建。'}</p>
-      <div class="delivery-actions">${!project.historical ? `<button class="secondary" data-delivery="config" ${project.active || state.building ? 'disabled' : disabled}>交付设置</button><button class="secondary" data-delivery="build" ${project.status !== 'completed' || project.active || state.building ? 'disabled' : disabled}>${release ? '重新构建交付' : '构建交付'}</button>` : ''}
+    this.panel.innerHTML = `<div class="delivery-heading"><h2>项目交付</h2><span>${project.active ? '项目员工执行中' : release ? `${escape(kinds[release.kind] || '交付')} · ${escape(statuses[release.status])}` : '等待员工准备交付'}</span></div>
+      <p>${project.active ? '员工将检查项目、准备启动或打包步骤并验证交付；可在工作记录查看进度，在项目操作中暂停。' : release?.instructions ? escape(release.instructions) : '交给项目员工准备预览或安装包，缺少配置和启动失败由员工处理，无需手填命令。'}</p>
+      <div class="delivery-actions">${!project.historical ? `<button class="primary" data-delivery="build" ${project.status !== 'completed' || project.active || state.building ? 'disabled' : disabled}>${release?.status === 'failed' || release?.preview === 'failed' ? '让员工修复交付' : release?.status === 'ready' ? '让员工重新交付' : '让员工准备交付'}</button><button class="secondary" data-delivery="config" ${project.active || state.building ? 'disabled' : disabled}>高级交付设置</button>` : ''}
       ${state.building && !project.active ? `<button class="secondary" data-delivery="cancel" ${disabled}>取消构建</button>` : ''}
       ${release?.status === 'ready' && release.kind === 'web' ? `<label>预览端口<input data-delivery-port type="number" min="1024" max="65535" value="${escape(previousPort || release.port || 4173)}" ${release.preview === 'running' || release.preview === 'starting' ? 'disabled' : ''}></label><button class="primary" data-delivery="start" ${release.preview === 'running' || release.preview === 'starting' ? 'disabled' : disabled}>启动预览</button><button class="secondary" data-delivery="stop" ${['running', 'starting'].includes(release.preview) ? disabled : 'disabled'}>停止预览</button><span>${escape(previews[release.preview])}</span>${release.url ? `<a class="primary" href="${escape(release.url)}" target="_blank" rel="noopener noreferrer">打开预览 ↗</a>` : ''}` : ''}</div>
       ${release?.status === 'ready' && release.files?.length ? `<ul class="delivery-files">${release.files.map(file => `<li><a href="${escape(file.url)}" download>${escape(file.name)}</a><small>${file.size.toLocaleString()} 字节 · SHA-256 ${escape(file.sha256)}</small></li>`).join('')}</ul>` : ''}
@@ -52,7 +52,8 @@ export class DeliveryPanel {
   // open 复制项目设置或最近使用的仓库配置，未保存编辑只存在于当前表单。
   open(project) {
     this.editProject = project.id;
-    const config = project.settings.delivery || project.delivery?.config || { kind: 'web', port: 4173 };
+    const saved = project.settings.delivery || project.delivery?.config;
+    const config = saved?.kind ? saved : { kind: 'web', port: 4173 };
     for (const name of ['kind', 'build', 'verify', 'preview', 'port', 'instructions']) this.form.elements[name].value = config[name] ?? '';
     this.form.elements.artifacts.value = (config.artifacts || []).join('\n');
     this.dialog.querySelector('#delivery-error').textContent = ''; this.paintFields(); this.dialog.showModal();

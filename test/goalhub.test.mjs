@@ -104,6 +104,35 @@ test('交付配置缺失触发修复，补齐真实交付验证后才能完成',
   assert.ok(f.store.tasks(f.project.id).some(task => task.title === '补齐可使用的项目交付'));
 });
 
+test('已完成项目从交付入口交给员工修复，保留目标并自动处理缺失配置', async t => {
+  const f = fixture(t, {
+    // developer 第一次重新交付遗漏配置，验证系统再次安排员工修复而非停在报错。
+    developer({ options, count }) { if (count === 2) rmSync(join(options.cwd, 'goalhub.delivery.json')); },
+  });
+  const id = f.project.id;
+  f.orchestrator.start(id);
+  await waitUntil(() => !f.orchestrator.controls.has(id), '初始目标未完成', 30000);
+  f.store.saveDelivery(id, { kind: 'web', port: 4789, build: '过时命令', preview: '过时启动命令', instructions: '保留原端口' });
+  const server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await server.hostSetup.close(); });
+  const url = `http://127.0.0.1:${server.address().port}/api/projects/${id}/delivery/build`;
+  const request = () => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  assert.equal((await request()).status, 202);
+  assert.equal((await request()).status, 400);
+  assert.equal(f.store.project(id).settings.delivery, undefined);
+  await waitUntil(() => !f.orchestrator.controls.has(id), '员工交付未完成', 60000);
+  assert.equal(f.store.project(id).status, 'completed', f.store.project(id).summary);
+  assert.equal(f.store.project(id).active_goal_id, f.project.active_goal_id);
+  assert.equal(f.store.goals(id).length, 1);
+  assert.equal(f.counts.developer, 3);
+  assert.ok(f.counts.coordinator >= 2);
+  assert.match(f.calls.filter(call => call.role === 'developer')[1].input, /4789/);
+  assert.match(f.calls.filter(call => call.role === 'developer')[1].input, /不要求用户填写技术命令/);
+  assert.equal(f.orchestrator.delivery.snapshot(id).release.status, 'ready');
+  assert.ok(!existsSync(f.git.paths(id).work));
+});
+
 test('同项目两次迭代保留首轮证据，重启后协调者及开发会话续接且读取已合并代码', async t => {
   const f = fixture(t, {
     // planner 验证第二个目标确实看到首轮代码，并模拟可去重的宿主统计。
