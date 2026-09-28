@@ -1,0 +1,86 @@
+// 本文件验证认证隔离、CLI 参数、设备码生命周期和第三方 Claude 模型配置，不请求外部模型。
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Store } from '../lib/store.mjs';
+import { Runtime } from '../lib/runtime.mjs';
+import { HostSetup } from '../lib/host-setup.mjs';
+import { HostAuth, saveCodex, inspectCodex } from '../lib/host-auth.mjs';
+
+// fixture 使用临时数据库及公共模块，只有进程启动由测试替身接管。
+async function fixture(t) {
+  const dataDir = mkdtempSync(join(tmpdir(), 'goalhub-auth-'));
+  const store = new Store(join(dataDir, 'state.sqlite')), runtime = new Runtime(dataDir);
+  const module = await runtime.load();
+  t.after(() => { store.close(); rmSync(dataDir, { recursive: true, force: true }); });
+  return { dataDir, store, runtime, module };
+}
+
+// tick 等待事件回调进入可观察状态，避免依赖真实网络时间。
+const tick = () => new Promise(resolve => setTimeout(resolve, 5));
+
+test('Codex API 登录走 stdin 并隔离凭据，读取不回显密钥，空值保留与清除可用', async t => {
+  const f = await fixture(t); const secret = 'test-secret-never-in-arguments'; let calls = 0;
+  const module = { ...f.module, runProcess(command, args, options) {
+    calls++;
+    assert.equal(command, 'codex'); assert.ok(args.includes('--with-api-key')); assert.ok(!args.join(' ').includes(secret));
+    assert.equal(options.input, secret + '\n'); assert.equal(options.env.OPENAI_API_KEY, undefined);
+    assert.equal(options.env.CODEX_HOME, join(f.dataDir, 'codex-auth', 'api'));
+    writeFileSync(join(options.env.CODEX_HOME, 'auth.json'), JSON.stringify({ OPENAI_API_KEY: secret }));
+    return { done: Promise.resolve({ code: 0 }), stop() {} };
+  } };
+  await saveCodex(module, f.dataDir, { authMode: 'api', apiKey: secret });
+  assert.equal(inspectCodex(f.dataDir).hasApiKey, true); assert.ok(!JSON.stringify(inspectCodex(f.dataDir)).includes(secret));
+  await saveCodex(module, f.dataDir, { authMode: 'api', apiKey: '' }); assert.equal(calls, 1);
+  assert.ok(!readFileSync(join(f.dataDir, 'host-settings', 'codex-auth.json'), 'utf8').includes(secret));
+  await saveCodex(module, f.dataDir, { authMode: 'api', clearApiKey: true }); assert.equal(inspectCodex(f.dataDir).hasApiKey, false);
+  await assert.rejects(saveCodex(module, f.dataDir, { authMode: 'api' }), /API Key/);
+  await assert.rejects(saveCodex(module, f.dataDir, { authMode: 'invalid' }), /认证方式/);
+});
+
+test('设备码只展示官方地址，完成清除临时代码，取消和超时终止进程', async t => {
+  const f = await fixture(t); let finish, stopped = 0, starts = 0;
+  f.runtime.loaded = Promise.resolve({ ...f.module, runProcess(command, args, options) {
+    starts++; assert.ok(args.includes('--device-auth'));
+    assert.equal(options.env.CODEX_HOME, join(f.dataDir, 'codex-auth', 'device'));
+    options.onLine('stdout', 'https://evil.example/login');
+    options.onLine('stdout', 'https://auth.openai.com/codex/device\nABCDE-12345');
+    return { done: new Promise(resolve => { finish = resolve; }), stop() { stopped++; finish({ code: 1 }); } };
+  } });
+  const auth = new HostAuth(f.store, f.runtime, 60); t.after(() => auth.close());
+  auth.start(); auth.start(); await tick(); assert.equal(starts, 1);
+  assert.equal(auth.snapshot().url, 'https://auth.openai.com/codex/device'); assert.equal(auth.snapshot().code, 'ABCDE-12345');
+  finish({ code: 0 }); await auth.job.promise; assert.equal(auth.snapshot().status, 'ready'); assert.equal(auth.snapshot().code, '');
+  assert.ok(!JSON.stringify(auth.snapshot().history).includes('ABCDE-12345'));
+  auth.start(); await tick(); const cancelled = auth.job.promise; auth.cancel(); await cancelled;
+  assert.equal(stopped, 1); assert.equal(auth.snapshot().url, '');
+  auth.start(); await auth.job.promise; assert.equal(stopped, 2); assert.match(auth.snapshot().message, /过期/);
+});
+
+test('运行时使用对应认证环境，Claude 第三方含斜杠模型使用全局 URL 和 API Key', async t => {
+  const f = await fixture(t); let received, invocation;
+  f.runtime.loaded = Promise.resolve({ ...f.module, runHost(options) { received = options; return { done: Promise.resolve({ code: 0 }) }; }, runProcess(command, args, options) { invocation = { command, args, options }; } });
+  await saveCodex(f.module, f.dataDir, { authMode: 'device' });
+  await f.runtime.host({ hostType: 'codex', cwd: f.dataDir, input: 'hello' });
+  received.execute('codex', ['exec'], { env: received.env });
+  assert.ok(invocation.args.includes('forced_login_method="chatgpt"')); assert.equal(received.env.CODEX_HOME, join(f.dataDir, 'codex-auth', 'device'));
+  f.module.saveHostSettings(f.dataDir, 'claudecode', { baseUrl: 'https://gateway.example', apiKey: 'third-party-secret', provider: 'deepseek' });
+  await f.runtime.host({ hostType: 'claudecode', model: 'vendor/model', cwd: f.dataDir, input: 'hello' });
+  assert.equal(received.env.ANTHROPIC_API_KEY, 'third-party-secret'); assert.equal(received.env.ANTHROPIC_BASE_URL, 'https://gateway.example');
+  assert.equal(received.env.ANTHROPIC_MODEL, 'vendor/model'); assert.equal(received.env.ANTHROPIC_DEFAULT_HAIKU_MODEL, 'vendor/model');
+  assert.equal(received.env.ANTHROPIC_AUTH_TOKEN, undefined); assert.equal(received.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+});
+
+test('设备码登录期间禁止保存、测试和创建目标，登录使旧验证版本失效', async t => {
+  const f = await fixture(t); let finish;
+  f.runtime.loaded = Promise.resolve({ ...f.module, runProcess() { return { done: new Promise(resolve => { finish = resolve; }), stop() { finish({ code: 1 }); } }; } });
+  const setup = new HostSetup(f.store, f.runtime); t.after(() => setup.close());
+  await setup.save({ hostType: 'codex', model: '', authMode: 'device' }); const revision = setup.profile().revision;
+  setup.login(); await tick(); assert.notEqual(setup.profile().revision, revision);
+  await assert.rejects(setup.save({ hostType: 'codex', model: '' }), /等待/);
+  assert.throws(() => setup.start(), /等待/); assert.throws(() => setup.verified('old'), /等待/);
+  const pending = setup.auth.job.promise; setup.auth.cancel(); await pending;
+  assert.equal(setup.auth.snapshot().status, 'idle');
+});

@@ -27,3 +27,9 @@
 .setup-dialog input::placeholder,.setup-dialog textarea::placeholder { color:#69798b; opacity:1; }
 #host-test-output { font-size:14px; color:#20364d; }
 dialog::backdrop { backdrop-filter:none; }
+/* 登录状态保持可读，设备码可选中复制，认证记录不包含凭据。 */
+#codex-device { padding:16px; background:#f2f6fd; border:1px solid #dce3ee; border-radius:6px; }
+#device-code { font-size:24px; letter-spacing:3px; user-select:all; }
+#device-url { color:#244eaa; }
+#host-auth-history { font:inherit; font-size:14px; white-space:pre-wrap; max-height:150px; overflow:auto; }
+.setup-dialog .inline-choice input { min-height:auto; }

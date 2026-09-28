@@ -84,10 +84,13 @@
     <section id="setup-host">
       <form id="host-form">
         <div class="form-grid"><label>Agent 宿主<select name="hostType"><option value="codex">Codex</option><option value="claudecode">Claude Code</option><option value="deepseek-harness">DeepSeek Harness</option><option value="opencode">OpenCode</option></select></label><label>模型名称<input name="model" maxlength="150" placeholder="留空使用宿主默认模型"></label></div>
-        <p id="host-auth-note" class="setup-note">Codex 使用本机登录。未登录时请在终端执行 codex login，再返回测试。</p>
+        <label id="codex-auth-mode">Codex 认证方式<select name="authMode"><option value="local">沿用本机登录</option><option value="device">无头登录（ChatGPT 设备码）</option><option value="api">API Key 登录</option></select></label>
+        <p id="host-auth-note" class="setup-note">选择认证方式后保存，并测试连通性。</p>
+        <section id="codex-device" hidden aria-label="Codex 无头登录"><p>点击获取设备码后，在官方页面完成授权。服务器无需打开浏览器。</p><div class="setup-actions"><button type="button" class="secondary" id="login-host">获取设备码并登录</button><button type="button" class="secondary" id="cancel-login" hidden>取消登录</button></div><p id="login-status" role="status"></p><p id="device-authorization" hidden><a id="device-url" target="_blank" rel="noopener noreferrer">打开 OpenAI 官方授权页面</a><br>设备码：<strong id="device-code"></strong></p></section>
         <fieldset id="host-credentials" hidden><legend>连接设置</legend><label>服务地址<input name="baseUrl" type="url" maxlength="2048" placeholder="留空使用宿主默认地址"></label><label>供应商 ID（OpenCode）<input name="provider" value="deepseek" maxlength="80"></label><label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空保留已保存密钥"></label><label class="inline-choice"><input name="clearApiKey" type="checkbox">清除已保存的密钥</label><p id="host-key-state" class="setup-note"></p></fieldset>
         <div class="setup-actions"><button class="secondary" type="submit" id="save-host">保存配置</button><button class="primary" type="button" id="test-host">测试连通性</button></div>
       </form>
+      <details><summary>认证与配置记录</summary><pre id="host-auth-history"></pre></details>
       <p id="host-test-status" role="status" class="setup-note">请保存配置，然后测试。</p><details><summary>测试输入与输出 / 历史记录</summary><pre id="host-test-output"></pre></details>
       <p class="setup-note">测试会调用所选模型，最多等待 120 秒。通过表示本次真实调用成功。</p>
       <div class="dialog-footer"><button class="primary" id="next-goal">完成</button></div>

@@ -6,6 +6,9 @@ export class SetupFlow {
     this.form = document.querySelector('#host-form'); this.dirty = true; this.pending = false;
     this.form.addEventListener('input', () => { this.dirty = true; this.paint(); });
     this.form.elements.hostType.addEventListener('change', () => this.credentials().catch(error => this.error(error)));
+    this.form.elements.authMode.addEventListener('change', () => this.paint());
+    this.find('#login-host').addEventListener('click', () => this.login().catch(error => this.error(error)));
+    this.find('#cancel-login').addEventListener('click', () => this.api('/host/login/cancel', {}).then(() => this.poll()).catch(error => this.error(error)));
     this.form.addEventListener('submit', event => { event.preventDefault(); this.save().catch(error => this.error(error)); });
     this.find('#test-host').addEventListener('click', () => this.test().catch(error => this.error(error)));
     this.find('#next-goal').addEventListener('click', () => this.closeHost());
@@ -49,30 +52,54 @@ export class SetupFlow {
     if (type !== this.form.elements.hostType.value) return;
     this.form.elements.baseUrl.value = value.baseUrl || ''; this.form.elements.provider.value = value.provider || 'deepseek';
     this.form.elements.apiKey.value = ''; this.form.elements.clearApiKey.checked = false;
-    this.find('#host-credentials').hidden = type === 'codex';
+    this.form.elements.authMode.value = value.authMode || 'local';
     this.find('#host-key-state').textContent = value.hasApiKey ? '已保存密钥，留空可保留。' : '未保存密钥，可填写或沿用本机宿主认证。';
-    this.find('#host-auth-note').textContent = type === 'codex' ? 'Codex 使用本机登录；未登录时在终端执行 codex login 后再测试。' : '连接设置交由公共 agent-runtime 保存，仅用于该宿主。留空可使用本机默认认证；OpenCode 模型需填写 provider/model。';
+    this.paint();
   }
   // passed 当前配置存在成功探测且没有未保存编辑时，才放行下一步。
   passed() { return !this.dirty && !this.pending && this.state?.tests?.find(test => test.revision === this.state.revision)?.status === 'passed'; }
   // paint 展示持久化测试输入输出与状态。
   paint() {
     const latest = this.state?.tests?.find(test => test.revision === this.state.revision);
-    const running = latest?.status === 'running';
+    const running = latest?.status === 'running' || this.state?.auth?.status === 'logging_in';
+    const type = this.form.elements.hostType.value, mode = this.form.elements.authMode.value;
+    this.find('#codex-auth-mode').hidden = type !== 'codex';
+    this.find('#codex-device').hidden = type !== 'codex' || mode !== 'device';
+    this.find('#host-credentials').hidden = type === 'codex' && mode !== 'api';
+    this.form.elements.baseUrl.closest('label').hidden = type === 'codex';
+    this.form.elements.provider.closest('label').hidden = type !== 'opencode';
+    this.find('#host-auth-note').textContent = type === 'codex' ? mode === 'api' ? '填写 API Key 后点击保存即可完成 API 登录，再测试实际模型连接。密钥不会回显。' : mode === 'device' ? '使用独立的 ChatGPT 设备码登录；请先在 ChatGPT 安全设置中启用设备码登录。' : '沿用服务器本机 Codex 已有登录。也可以选择无头登录或 API Key 登录。' : type === 'claudecode' ? '支持第三方 Anthropic 兼容服务：填写服务地址、API Key 和供应商要求的模型名称。留空沿用本机默认配置。' : '连接设置按宿主保存；OpenCode 模型需填写 provider/model。';
+    this.find('#login-host').disabled = this.pending || running || this.loading;
+    this.find('#cancel-login').hidden = this.state?.auth?.status !== 'logging_in';
+    this.find('#login-status').textContent = this.state?.auth?.message || '';
+    const auth = this.state?.auth;
+    const showCode = auth?.status === 'logging_in' && auth.url === 'https://auth.openai.com/codex/device' && auth.code;
+    this.find('#device-authorization').hidden = !showCode;
+    this.find('#device-url').href = showCode ? auth.url : '#';
+    this.find('#device-code').textContent = showCode ? auth.code : '';
+    this.find('#host-auth-history').textContent = auth?.history?.map(item => `${item.created_at} · ${item.message}`).join('\n') || '暂无认证记录';
     this.form.querySelectorAll('input, select').forEach(element => { element.disabled = this.pending || running || this.loading; });
     this.find('#next-goal').textContent = this.returnToGoal ? '返回目标草稿' : '完成';
     this.find('#selected-host').textContent = this.passed() ? `共用已验证宿主：${this.state.hostType} · ${this.state.model || '默认模型'}` : '全局宿主尚未通过测试，请先点击「管理全局宿主」。目标内容可先填写并保留。';
     this.find('#create-form [type=submit]').disabled = this.creating || !this.passed();
     this.find('#save-host').disabled = this.pending || running || this.loading;
     this.find('#test-host').disabled = this.pending || running || this.loading;
-    this.find('#host-test-status').textContent = this.dirty ? '可直接点击「测试连通性」，自动保存当前配置并测试。' : running ? '正在真实调用模型，可关闭页面，稍后查看记录…' : latest?.status === 'passed' ? '连通性测试通过，可以输入目标。' : latest ? '测试未通过，请查看输出并修正配置后重试。' : '配置已保存，请测试连通性。';
+    this.find('#host-test-status').textContent = this.state?.auth?.status === 'logging_in' ? '等待完成设备码授权，登录完成后可测试连通性。' : this.dirty ? '可直接点击「测试连通性」，自动保存当前配置并测试。' : running ? '正在真实调用模型，可关闭页面，稍后查看记录…' : latest?.status === 'passed' ? '连通性测试通过，可以输入目标。' : latest ? '测试未通过，请查看输出并修正配置后重试。' : '配置已保存，请测试连通性。';
     this.find('#host-test-output').textContent = this.state?.tests?.map(test => `${test.created_at} · ${test.host_type} / ${test.model || '默认模型'} · ${test.status}\n输入：${test.input}\n输出：${test.output}`).join('\n\n') || '暂无测试记录';
   }
   // save 保存设置并使旧配置的验证结果失效。
   async save() {
     const value = Object.fromEntries(new FormData(this.form)); value.clearApiKey = this.form.elements.clearApiKey.checked;
     this.pending = true; this.paint(); this.find('#host-error').textContent = '';
-    try { this.state = await this.api('/host', value); this.form.elements.apiKey.value = ''; this.dirty = false; }
+    try { this.state = await this.api('/host', value); this.form.elements.apiKey.value = ''; this.form.elements.clearApiKey.checked = false; this.find('#host-key-state').textContent = this.state.credentials.hasApiKey ? '已保存密钥，留空可保留。' : '未保存 API 密钥。'; this.dirty = false; }
+    finally { this.pending = false; this.paint(); }
+  }
+  // login 保存当前认证方式再发起设备码登录，刷新后继续显示同一个登录任务。
+  async login() {
+    if (!this.form.reportValidity()) return;
+    if (this.dirty) await this.save();
+    this.pending = true; this.paint(); this.find('#host-error').textContent = '';
+    try { await this.api('/host/login', {}); this.state = await this.api('/host'); this.dirty = false; }
     finally { this.pending = false; this.paint(); }
   }
   // test 提交真实调用，状态和日志由后续轮询恢复。
