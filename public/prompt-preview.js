@@ -22,7 +22,20 @@ export function previewRequest(path, value) {
 export function installPromptPreviews({ api, setup }) {
   const dialog = document.querySelector('#prompt-dialog'), content = dialog.querySelector('#prompt-content'), note = dialog.querySelector('#prompt-note');
   const confirm = dialog.querySelector('#prompt-confirm'), cancel = dialog.querySelector('#prompt-cancel'), title = dialog.querySelector('#prompt-title');
-  let version = 0, resolvePending = null;
+  const copy = dialog.querySelector('#prompt-copy'), copyStatus = dialog.querySelector('#prompt-copy-status');
+  let version = 0, resolvePending = null, copyText = '';
+  // 复制当前已显示的完整输入，不复制按钮、元数据和错误信息，也不触发模型调用。
+  copy.onclick = async () => {
+    if (copy.disabled || !copyText) return;
+    const current = version, text = copyText; copy.disabled = true; copyStatus.textContent = '';
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('浏览器不支持剪贴板');
+      await navigator.clipboard.writeText(text);
+      if (current === version && dialog.open) copyStatus.textContent = '已复制';
+    } catch {
+      if (current === version && dialog.open) copyStatus.textContent = '复制失败，请手动选择提示词复制';
+    } finally { if (current === version && dialog.open) copy.disabled = !copyText; }
+  };
   // finish 先使未完成请求失效，再返回用户选择，保证重复点击不会重复执行。
   function finish(accepted = false) {
     version++; const resolve = resolvePending; resolvePending = null;
@@ -37,6 +50,7 @@ export function installPromptPreviews({ api, setup }) {
   async function show(load, heading, requiresConfirmation) {
     if (dialog.open || resolvePending) throw new Error('请先完成当前提示词确认');
     const current = ++version;
+    copyText = ''; copy.disabled = true; copyStatus.textContent = '';
     title.textContent = heading; content.replaceChildren(); note.textContent = '正在读取本次提示词…';
     confirm.hidden = !requiresConfirmation; confirm.disabled = true; cancel.textContent = requiresConfirmation ? '取消' : '关闭';
     const answer = new Promise(resolve => { resolvePending = resolve; });
@@ -53,6 +67,8 @@ export function installPromptPreviews({ api, setup }) {
         if (entry.executor) { const meta = document.createElement('p'); meta.className = 'setup-note'; meta.textContent = `${entry.executor.name} · ${entry.executor.hostType} · ${entry.executor.model || '默认模型'} · 思考强度 ${entry.executor.reasoningEffort || '默认'}`; section.append(meta); }
         pre.textContent = entry.error ? `暂不可预览：${entry.error}` : entry.input; section.append(pre); content.append(section);
       }
+      copyText = entries.filter(entry => !entry.error && typeof entry.input === 'string').map(entry => entry.input).join('\n\n');
+      copy.disabled = !copyText;
       confirm.disabled = !entries.length || entries.some(entry => entry.error || !entry.input);
       if (!confirm.disabled && requiresConfirmation) confirm.focus();
     } catch (error) { if (current === version && dialog.open) note.textContent = `无法读取提示词，尚未执行：${error.message}。请取消后重试。`; } })();

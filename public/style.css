@@ -1374,3 +1374,6 @@ select:focus {
 
 /* 二次确认操作固定在弹窗底部，长提示词滚动时仍可取消或确认。 */
 .prompt-confirm-actions{position:sticky;bottom:-24px;background:#fff;border-top:1px solid var(--line);padding:16px 0;margin-top:20px;z-index:1}
+
+/* 复制反馈与操作按钮同排，小屏允许换行以免遮挡确认按钮。 */
+.prompt-confirm-actions{flex-wrap:wrap}#prompt-copy-status{margin-right:auto;font-size:13px;color:var(--muted)}

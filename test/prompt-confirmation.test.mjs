@@ -16,7 +16,7 @@ class Element extends EventTarget {
 // fixture 创建隔离 DOM，测试结束后恢复全局对象。
 function fixture(t, api) {
   const original = globalThis.document, dialog = new Element();
-  dialog.elements = Object.fromEntries(['#prompt-content', '#prompt-note', '#prompt-title', '#prompt-confirm', '#prompt-cancel', '[data-close-prompt]'].map(key => [key, new Element()]));
+  dialog.elements = Object.fromEntries(['#prompt-copy', '#prompt-copy-status', '#prompt-content', '#prompt-note', '#prompt-title', '#prompt-confirm', '#prompt-cancel', '[data-close-prompt]'].map(key => [key, new Element()]));
   globalThis.document = Object.assign(new EventTarget(), { querySelector: () => dialog, createElement: () => new Element() });
   t.after(() => { globalThis.document = original; });
   return { dialog, confirm: dialog.elements['#prompt-confirm'], cancel: dialog.elements['#prompt-cancel'], gate: installPromptPreviews({ api, setup: {} }) };
@@ -53,4 +53,21 @@ test('加载失败禁止确认，加载中关闭不会被迟到响应重新打�
   const failed = assert.rejects(f.gate('/host/test', {}), /已取消/);
   respond({ entries: [{ title: '错误', error: '宿主未配置' }] }); await tick();
   assert.equal(f.confirm.disabled, true); f.cancel.onclick(); await failed;
+});
+// 复制仅写入展示的完整正文，成功或权限拒绝都不会确认模型调用。
+test('提示词复制保留换行并反馈结果，不关闭确认框', async t => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  let copied = '', deny = false;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: {
+    // writeText 模拟剪贴板成功与浏览器权限拒绝。
+    async writeText(text) { if (deny) throw new Error('权限拒绝'); copied = text; }
+  } } });
+  t.after(() => { if (original) Object.defineProperty(globalThis, 'navigator', original); else delete globalThis.navigator; });
+  const f = fixture(t, async () => ({ entries: [{ title: '提示词', input: '第一行\n第二行 <tag>' }] }));
+  const pending = assert.rejects(f.gate('/host/test', {}), /已取消/);
+  const copy = f.dialog.elements['#prompt-copy'], status = f.dialog.elements['#prompt-copy-status'];
+  assert.equal(copy.disabled, true); await tick(); await copy.onclick();
+  assert.equal(copied, '第一行\n第二行 <tag>'); assert.equal(status.textContent, '已复制'); assert.equal(f.dialog.open, true);
+  deny = true; await copy.onclick(); assert.match(status.textContent, /复制失败/); assert.equal(copy.disabled, false);
+  f.cancel.onclick(); await pending;
 });
