@@ -22,7 +22,8 @@ const $ = (selector) => document.querySelector(selector);
 const labels = { ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
 const roles = { 'team-builder': 'God 搭建团队', planner: '负责人规划', coordinator: '任务分配', developer: '员工执行', evaluator: '定时评估', 'final-review': '最终评估', test: '测试验收' };
 const hostLabels = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
-let selectedGoal = '';
+let selectedGoal = '', homeVisible = true;
+const homeCards = new Map();
 let selected = localStorage.getItem('goalhub.project') || '', project = null, projects = [], tab = 'tasks', busy = false, refreshInFlight = false;
 let events = [], search = '', kind = '', questionsKey = '', toastTimer, eventProject = '', historyMode = false;
 const markupCache = new WeakMap();
@@ -96,6 +97,54 @@ function toast(message) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 6500);
 }
 
+// syncHomeFrame 仅给可见卡片创建独立场景，隔离引擎状态并限制显卡资源占用。
+function syncHomeFrame(card) {
+  if (!homeVisible || !card.visible) { card.frame?.remove(); card.frame = null; return; }
+  if (!card.frame) {
+    card.frame = document.createElement('iframe'); card.frame.title = `${card.project.name}办公室`;
+    card.frame.src = '/office-card.html'; card.element.querySelector('.home-scene').append(card.frame);
+  }
+  card.frame.contentWindow?.postMessage({ type: 'office-snapshot', office: card.project.office }, location.origin);
+}
+const homeObserver = new IntersectionObserver(entries => {
+  for (const entry of entries) { const card = homeCards.get(entry.target.dataset.id); if (card) { card.visible = entry.isIntersecting; syncHomeFrame(card); } }
+});
+// renderHome 保留卡片节点和焦点，多个项目独立展示名称、进度与员工场景。
+function renderHome() {
+  const visible = projects.filter(item => item.settings.showOfficeOnHome !== false), ids = new Set(visible.map(item => item.id));
+  for (const [id, card] of homeCards) if (!ids.has(id)) { homeObserver.unobserve(card.element); card.element.remove(); homeCards.delete(id); }
+  for (const item of visible) {
+    let card = homeCards.get(item.id);
+    if (!card) {
+      const element = document.createElement('article'); element.className = 'home-office office-scene-card'; element.dataset.id = item.id;
+      element.innerHTML = `<header class="office-scene-heading"><button class="text-button" data-project="${escape(item.id)}"></button><span></span></header><div class="home-scene"></div><p class="home-office-progress"></p>`;
+      card = { element, project: item, visible: false, frame: null }; homeCards.set(item.id, card); $('#home-offices').append(element); homeObserver.observe(element);
+    }
+    card.project = item; card.element.querySelector('button').textContent = item.name;
+    card.element.querySelector('header span').textContent = labels[item.status] || item.status;
+    card.element.querySelector('p').textContent = `任务 ${item.done_count}/${item.task_count} · 工作中 ${item.office?.actors.filter(actor => actor.state === 'working').length || 0}`;
+    syncHomeFrame(card);
+  }
+  $('#home-offices-empty').hidden = visible.length > 0;
+}
+// 接收隔离场景的员工选择，校验消息来源后固定对应项目再打开员工详情。
+window.addEventListener('message', async event => {
+  if (event.origin !== location.origin) return;
+  const card = [...homeCards.values()].find(item => item.frame?.contentWindow === event.source);
+  if (!card) return;
+  if (event.data?.type === 'office-ready') { syncHomeFrame(card); return; }
+  if (event.data?.type === 'office-select' && card.project.office?.actors.some(actor => actor.id === event.data.id)) {
+    try { await selectProject(card.project.id); if (selected === card.project.id) office.select(event.data.id); } catch (error) { toast(error.message); }
+  }
+});
+// 保存时绑定项目编号；失败恢复原值，历史迭代也共享当前项目的展示偏好。
+$('#show-office-on-home').addEventListener('change', async event => {
+  const input = event.currentTarget, id = selected, value = input.checked; input.disabled = true;
+  try { await api(`/projects/${id}/display`, { showOfficeOnHome: value }); const item = projects.find(item => item.id === id); if (item) item.settings.showOfficeOnHome = value; renderHome(); }
+  catch (error) { if (selected === id) input.checked = !value; toast(error.message); }
+  finally { input.disabled = false; }
+});
+
 // navigation 展示真实项目及任务完成进度。
 function navigation() {
   $('#project-count').textContent = projects.length;
@@ -113,15 +162,16 @@ function renderQuestions() {
 
 // renderProject 更新任务与证据区域，保留用户打开的测试详情。
 function renderProject() {
-  $('#project-tools').hidden = !project;
-  $('#empty').hidden = !!project; $('#project').hidden = !project;
+  $('#office-home').hidden = !homeVisible || !projects.length;
+  $('#project-tools').hidden = homeVisible || !project;
+  $('#empty').hidden = !!project; $('#project').hidden = homeVisible || !project;
   if (!project) { office.setVisible(false); return; }
   panels.render(project); setup.syncProject(project); deliveryPanel.render(project);
-  office.update(project, busy || !!project.historical || !project.active_goal_id); office.setVisible(true);
+  office.update(project, busy || !!project.historical || !project.active_goal_id); office.setVisible(!homeVisible);
   $('#office-view').hidden = false;
   if (recordsOwner) recordsOwner = project.office?.actors.find(actor => actor.id === recordsOwner.id) || null;
   $('#leader-records').hidden = !recordsOwner?.isLead;
-  $('#project-title').textContent = project.name; document.title = `${project.name} · GoalHub`;
+  $('#project-title').textContent = project.name; document.title = homeVisible ? '办公室总览 · GoalHub' : `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
   html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
   $('#project-actions').querySelectorAll('button').forEach((button) => { button.disabled = busy; });
@@ -130,7 +180,8 @@ function renderProject() {
   $('#pipeline').innerHTML = ['理解需求', '计划与任务', '确认计划', '实施与验收'].map((name, index) => `<div class="pipeline-step ${index < stage ? 'finished' : index === stage ? 'active' : ''}">${name}</div>`).join('');
   $('#summary').textContent = project.summary || (project.status === 'planning' ? '规划 Agent 正在分析目标、拆解任务与制定测试项目。' : '目标已保存，等待开始执行。');
   $('#summary').classList.toggle('warning', ['blocked', 'waiting_input'].includes(project.status));
-  $('#project-progress-summary').textContent = project.summary || (project.active_goal_id ? labels[project.status] : '写下第一个需求，让团队开始规划。');
+  $('#office-project-name').textContent = project.name;
+  $('#show-office-on-home').checked = projects.find(item => item.id === project.id)?.settings.showOfficeOnHome !== false;
   renderQuestions();
   renderPlanPreview();
   if ($('#plan-preview').hidden && $('#question-panel').hidden && $('#attention-dialog').open) closePanel('attention-dialog');
@@ -200,9 +251,9 @@ async function refresh() {
   if (refreshInFlight) return;
   refreshInFlight = true;
   try {
-    const [list, status, usage] = await Promise.all([api('/projects'), api('/status'), api('/usage')]);
+    const [list, status, usage] = await Promise.all([api('/projects?offices=1'), api('/status'), api('/usage')]);
     panels.global(usage);
-    projects = list;
+    projects = list; renderHome();
     $('#connection').textContent = status.runtime.available ? '本机服务已连接' : '请配置运行模块';
     $('#connection-dot').className = `connection-dot ${status.runtime.available ? 'connected' : 'error'}`;
     $('#connection').title = status.runtime.message;
@@ -220,12 +271,13 @@ async function refresh() {
     hasLoadedProjects = true; $('#startup-state').hidden = true;
   } catch (error) {
     if (!hasLoadedProjects) { $('#empty').hidden = true; $('#startup-state').hidden = false; $('#startup-message').textContent = '项目读取失败，正在重试。请检查本地服务是否已启动。'; $('#startup-retry').hidden = false; }
-    $('#connection').textContent = '连接中断，正在重试'; $('#connection-dot').className = 'connection-dot error'; office.disconnected(); }
+    $('#connection').textContent = '连接中断，正在重试'; $('#connection-dot').className = 'connection-dot error'; office.disconnected(); for (const card of homeCards.values()) card.frame?.contentWindow?.postMessage({ type: 'office-offline' }, location.origin); }
   finally { refreshInFlight = false; }
 }
 
 // selectProject 清理上一个项目的筛选和表单状态。
 async function selectProject(id) {
+  homeVisible = false; renderHome();
   recordsOwner = null;
   for (const id of ['sidebar', 'employee-panel', 'goal-dialog', 'usage-dialog', 'attention-dialog', 'delivery-summary-dialog', 'delivery-dialog']) closePanel(id);
   selectedGoal = ''; selected = id; localStorage.setItem('goalhub.project', id); questionsKey = ''; historyMode = false; events = []; search = ''; kind = '';
@@ -238,6 +290,7 @@ async function selectProject(id) {
 
 // action 执行用户主动触发的项目操作。
 async function action(name) {
+  if (name === 'home') { homeVisible = true; closePanel('sidebar'); renderHome(); renderProject(); document.title = '办公室总览 · GoalHub'; return; }
   // 顶部直接定位需要用户处理的内容，避免长页面遗漏待办。
   if (name === 'attention') { openPanel('attention-dialog'); const panel = $(project.status === 'waiting_input' ? '#question-panel' : '#plan-preview'); panel.scrollIntoView({ block: 'center' }); panel.querySelector('textarea, button')?.focus({ preventScroll: true }); return; }
   if (name === 'employee-details') { office.select(office.selected); return; }

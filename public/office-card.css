@@ -1,0 +1,2 @@
+/* 独立办公室保持地图比例，员工文字入口兼容键盘和画布失败。 */
+body{margin:0;background:#eef2e9;font:12px sans-serif;color:#40564e}#scene{position:relative;aspect-ratio:34/22;width:100%}#scene>div{position:absolute;inset:0}canvas{display:block}#status{position:absolute;top:0;background:#fff;padding:8px}#employees{display:flex;gap:6px;flex-wrap:wrap;padding:8px}button{border:1px solid #ced8c7;background:#fff;color:#40564e;padding:5px;border-radius:4px;cursor:pointer}

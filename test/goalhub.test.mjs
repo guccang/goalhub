@@ -794,3 +794,28 @@ test('新增前端模块无需重启且不会暴露项目源码', async t => {
   assert.equal((await fetch(`${base}/lib/app.mjs`)).status, 404);
   assert.equal((await fetch(`${base}/data/goalhub.sqlite`)).status, 404);
 });
+// 主页展示偏好在执行期间可独立更新，旧项目默认展示且不会改变目标状态。
+test('办公室展示选项持久化、隔离项目并校验参数', async t => {
+  const f = fixture(t), other = f.store.create({ name: '另一个办公室' }), server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  // postDisplay 通过真实 HTTP 路由更新显示偏好。
+  const postDisplay = value => fetch(`${base}/api/projects/${f.project.id}/display`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ showOfficeOnHome: value }) });
+  const before = f.store.project(f.project.id);
+  assert.equal(before.settings.showOfficeOnHome, true);
+  assert.equal((await postDisplay(false)).status, 200);
+  let list = await (await fetch(`${base}/api/projects?offices=1`)).json();
+  assert.equal(list.find(row => row.id === f.project.id).office, undefined);
+  assert.equal(list.find(row => row.id === other.id).office.projectId, other.id);
+  assert.equal(f.store.project(f.project.id).active_goal_id, before.active_goal_id);
+  assert.equal(f.store.project(f.project.id).status, before.status);
+  assert.equal((await postDisplay('false')).status, 400);
+  assert.equal(f.store.project(f.project.id).settings.showOfficeOnHome, false);
+  const reopened = new Store(join(f.directory, 'state.sqlite'));
+  try { assert.equal(reopened.project(f.project.id).settings.showOfficeOnHome, false); } finally { reopened.close(); }
+  assert.equal((await postDisplay(true)).status, 200);
+  list = await (await fetch(`${base}/api/projects?offices=1`)).json();
+  assert.equal(list.find(row => row.id === f.project.id).office.projectId, f.project.id);
+  assert.equal((await fetch(`${base}/office-card.html`)).status, 200);
+});
