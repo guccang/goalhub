@@ -33,6 +33,9 @@ export class GodPanel {
   }
   // renderHistory 通过文本节点渲染项目名称，点击记录使用工作台现有详情窗口。
   renderHistory() {
+    const key = JSON.stringify(this.state.runs);
+    if (this.historyKey === key) return;
+    this.historyKey = key;
     const list = this.dialog.querySelector('#god-history'); list.replaceChildren();
     const labels = { running: '生成中', completed: '已生成', failed: '失败', interrupted: '已中断' };
     for (const run of this.state.runs) {
