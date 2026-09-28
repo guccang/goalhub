@@ -20,6 +20,7 @@
     <button class="primary new-button" data-action="new"><span aria-hidden="true">＋</span> 添加项目</button>
     <div class="nav-label">我的项目 <span id="project-count">0</span></div>
     <nav id="project-list" aria-label="项目列表"></nav>
+    <button class="secondary host-entry" data-action="god-setup">God · GoalHub 管理者</button>
     <button class="secondary host-entry" data-action="host-setup">宿主配置与测试</button>
     <button class="text-button global-entry" data-action="global-usage" id="global-total">整体用量：未知</button>
     <div class="sidebar-bottom"><span class="connection-dot" id="connection-dot"></span><span id="connection">连接中</span><small>源码与执行记录保存在本机</small></div>
@@ -106,10 +107,19 @@
     </section>
   </main>
   <dialog id="employees-dialog" class="create-dialog setup-dialog team-dialog"><div class="dialog-header"><div><h2>项目团队</h2><p id="team-project-name"></p></div><button type="button" class="icon-button" data-close-employees aria-label="关闭员工管理">×</button></div>
-    <section class="team-generator"><h3>God 一键搭建团队</h3><label>项目目标<textarea id="team-generation-goal" rows="3" maxlength="30000" placeholder="描述项目目标和期望交付"></textarea></label><p class="setup-note">使用已保存负责人的宿主与模型；未指定负责人时使用全局配置。生成后可调整员工、职位和工作说明，保存后生效。</p><div class="team-generator-actions"><button type="button" id="generate-team" class="primary">God 一键搭建团队</button><button type="button" id="cancel-team-generation" class="secondary" hidden>取消生成</button><button type="button" id="load-team-proposal" class="secondary" hidden>载入上次生成方案</button><button type="button" id="undo-team-proposal" class="secondary" hidden>恢复生成前草稿</button></div><p id="team-generation-status" role="status" aria-live="polite"></p></section><form><fieldset id="team-edit-fields"><details class="team-context"><summary>项目上下文与语言</summary><p class="setup-note">团队共享这些要求，每名员工再根据自己的职位完成任务。</p><label>架构、需求背景与项目规范<textarea id="project-context" maxlength="20000" rows="4" placeholder="项目采用什么架构、有哪些长期约束和交付规范"></textarea></label><label>项目默认语言<select id="project-language" aria-label="项目默认语言"></select></label></details>
+    <section class="team-generator"><h3>God 一键搭建团队</h3><label>项目目标<textarea id="team-generation-goal" rows="3" maxlength="30000" placeholder="描述项目目标和期望交付"></textarea></label><p class="setup-note">由 GoalHub 独立管理者 God 生成，执行配置可在侧栏「God · GoalHub 管理者」中调整。生成后可调整员工、职位和工作说明，保存后生效。</p><div class="team-generator-actions"><button type="button" id="generate-team" class="primary">God 一键搭建团队</button><button type="button" id="cancel-team-generation" class="secondary" hidden>取消生成</button><button type="button" id="load-team-proposal" class="secondary" hidden>载入上次生成方案</button><button type="button" id="undo-team-proposal" class="secondary" hidden>恢复生成前草稿</button></div><p id="team-generation-status" role="status" aria-live="polite"></p></section><form><fieldset id="team-edit-fields"><details class="team-context"><summary>项目上下文与语言</summary><p class="setup-note">团队共享这些要求，每名员工再根据自己的职位完成任务。</p><label>架构、需求背景与项目规范<textarea id="project-context" maxlength="20000" rows="4" placeholder="项目采用什么架构、有哪些长期约束和交付规范"></textarea></label><label>项目默认语言<select id="project-language" aria-label="项目默认语言"></select></label></details>
     <div class="team-copy"><select id="copy-team-source" aria-label="复制团队的来源项目"></select><button type="button" class="secondary" id="copy-team">复制团队到草稿</button></div><p id="team-leader-note" class="setup-note" role="status"></p>
     <div class="team-layout"><aside class="team-roster"><div id="employee-list" aria-label="项目员工"></div><button type="button" class="secondary" id="add-employee">添加员工</button></aside><section id="employee-detail" aria-label="员工配置"></section></div>
     <p id="employee-error" class="form-error" role="alert"></p><div class="dialog-footer"><span class="setup-note">暂停项目后可保存配置。</span><button type="submit" class="primary">保存项目团队</button></div></fieldset></form></dialog>
+  <dialog id="god-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><div><h2>God · GoalHub 管理者</h2><p>为各项目搭建团队，配置独立保存。</p></div><button type="button" class="icon-button" data-close-god aria-label="关闭 God 配置">×</button></div>
+    <p class="setup-note">首次使用时以全局宿主初始化，之后可独立调整。认证沿用对应宿主的全局设置。God 为项目选出负责人，项目负责人负责后续规划和执行。</p>
+    <p id="god-state" role="status"></p><form><fieldset class="god-fields"><div class="employee-grid">
+    <label>执行宿主<select name="hostType"><option value="codex">Codex</option><option value="claudecode">Claude Code</option><option value="deepseek-harness">DeepSeek Harness</option><option value="opencode">OpenCode</option></select></label>
+    <label>模型<input name="model" maxlength="150"></label>
+    <label>思考强度<select name="reasoningEffort"><option value="">模型默认</option><option>minimal</option><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option></select></label>
+    <label>单轮时限（分钟）<input name="timeoutMinutes" type="number" min="1" max="240" required></label></div>
+    <label>God 工作说明<textarea name="instructions" rows="4" maxlength="4000" required></textarea></label>
+    <p id="god-error" class="form-error" role="alert"></p><div class="dialog-footer"><button class="primary" type="submit">保存 God 配置</button></div></fieldset></form><h3>最近管理记录</h3><ul id="god-history"></ul></dialog>
   <dialog id="host-dialog" class="create-dialog setup-dialog">
     <div class="dialog-header"><div><h2>全局宿主配置与测试</h2><p>所有目标共用此配置与测试结果。配置一次，通过后可用于多个目标。</p></div><button type="button" class="icon-button" data-action="close-host" aria-label="关闭宿主设置">×</button></div>
     <section id="setup-host">
