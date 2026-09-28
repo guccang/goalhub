@@ -131,3 +131,23 @@ test('动态模型查询隔离设备认证、合并并发并回收进程', async
   assert.equal((await f.runtime.models('claudecode')).supported,false);
   await assert.rejects(f.runtime.models('invalid'), /不支持/);
 });
+
+// 全局思考强度保存后必须传入真实探测，并使之前的验证结果失效。
+test('Codex 全局思考强度持久化、探测传参及版本失效', async t => {
+  const f = await fixture(t), setup = new HostSetup(f.store, f.runtime); let actual;
+  t.after(() => setup.close());
+  f.runtime.host = async options => {
+    actual = options;
+    return { done: Promise.resolve({ code: 0, finalMessage: options.input.match(/GOALHUB_OK_[a-f0-9-]+/)[0] }), stop() {} };
+  };
+  await setup.save({ hostType: 'codex', model: 'test-model', reasoningEffort: 'high' });
+  const probe = setup.start(); await setup.job.promise;
+  assert.equal(actual.reasoningEffort, 'high'); assert.equal(setup.test(probe.id).status, 'passed');
+  assert.equal(setup.verified(probe.id).reasoningEffort, 'high');
+  assert.equal((await setup.snapshot()).hosts.find(host => host.hostType === 'codex').reasoningEffort, 'high');
+  await setup.save({ hostType: 'codex', model: 'test-model', reasoningEffort: 'low' });
+  assert.throws(() => setup.verified(probe.id), /测试/);
+  await assert.rejects(setup.save({ hostType: 'codex', model: '', reasoningEffort: 'invalid' }), /强度无效/);
+  await assert.rejects(setup.save({ hostType: 'claudecode', model: '', reasoningEffort: 'high' }), /仅 Codex/);
+  assert.equal(setup.profile().reasoningEffort, 'low');
+});
