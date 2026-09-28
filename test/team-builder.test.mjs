@@ -14,7 +14,7 @@ import { team } from '../lib/employees.mjs';
 // proposal 构造具有项目专属分工的模型输出。
 function proposal() { return { summary: '以客户端交付与验证为核心组建团队', employees: [
   { character: 'michael', isLead: true, position: '游戏项目负责人', instructions: '分配客户端开发任务并核对测试证据', profileId: 'default' },
-  { character: 'jim', isLead: false, position: 'Unity 客户端工程师', instructions: '实现登录流程并提交自动化验证结果', profileId: 'default' },
+  { character: 'jim', isLead: false, position: 'Unity 客户端工程师', instructions: '实现客户端功能并提交自动化验证结果', profileId: 'default' },
 ] }; }
 
 // fixture 创建独立数据库与可停止宿主，提供 HTTP 请求和显式完成控制。
@@ -224,4 +224,21 @@ test('调用确认按操作选择阶段，交付预览不保存配置或创建�
   const newGoal = await f.request(path, { action: 'goals', role: 'planner', goal: '新的日历目标' });
   assert.match(newGoal.value.entries[0].input, /新的日历目标/);
   assert.equal(f.store.project(id).goal, f.project.goal);
+});
+
+// 新目标预览携带上一轮事实，God 仅生成长期能力定义，不再次传播旧版说明。
+test('God 不传播旧员工目标，新目标预览包含当前已完成迭代', async t => {
+  const f = await fixture(t), id = f.project.id;
+  const old = team(f.store.project(id));
+  old[0].instructions = '仅创建欢迎页面，h1 必须是 Hello GoalHub'; delete old[0].instructionsVersion;
+  f.store.saveEmployees(id, old);
+  const input = f.server.teamBuilder.prepare(f.store.project(id)).input;
+  assert.doesNotMatch(input, /Hello GoalHub/);
+  assert.match(input, /可跨目标复用的长期职责/);
+  assert.match(input, /不得写入具体功能/);
+  const preview = await f.request(`/projects/${id}/prompt-preview`, { role: 'planner', goal: '新增数独小游戏' });
+  const prompt = preview.value.entries[0].input;
+  assert.ok(prompt.startsWith('当前目标（本轮唯一产品目标）："新增数独小游戏"'));
+  assert.match(prompt, /完成 Unity 登录流程/);
+  assert.doesNotMatch(prompt, /Hello GoalHub/);
 });

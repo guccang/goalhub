@@ -34,7 +34,7 @@ export class EmployeeManager {
     this.dialog.querySelector('#add-employee').onclick = () => {
       if (this.employees.length >= 15) return;
       const character = this.characters.find(name => !this.employees.some(employee => employee.character === name)) || this.characters[0];
-      const employee = { id: crypto.randomUUID(), name: this.characterNames[character], position: '', character, isLead: false, enabled: true, hostType: 'codex', model: '', reasoningEffort: '', timeoutMinutes: 30, instructions: '', nativeLanguage: '' };
+      const employee = { id: crypto.randomUUID(), name: this.characterNames[character], position: '', character, isLead: false, enabled: true, hostType: 'codex', model: '', reasoningEffort: '', timeoutMinutes: 30, instructionsVersion: 2, instructions: '', nativeLanguage: '' };
       this.employees.push(employee); this.selected = employee.id; this.render();
     };
     this.list.addEventListener('click', event => {
@@ -167,7 +167,8 @@ export class EmployeeManager {
     this.detail.innerHTML = `<div class="employee-identity"><canvas width="36" height="56" data-portrait="${escape(employee.character)}" aria-hidden="true"></canvas><div><h3>${escape(employee.name)}</h3><p>人物与姓名保持一致，工作内容由下方职位定义。</p></div></div>
       <details class="character-picker"><summary>选择人物形象</summary><div class="character-grid">${this.characters.map(character => `<button type="button" data-character="${escape(character)}" aria-pressed="${employee.character === character}"><canvas width="36" height="56" data-portrait="${escape(character)}" aria-hidden="true"></canvas><span>${escape(this.characterNames[character])}</span></button>`).join('')}</div></details>
       <label>职位名称<input name="position" value="${escape(employee.position)}" maxlength="100" placeholder="例如：Unity 客户端开发"></label>
-      <label>职位工作说明<textarea name="instructions" maxlength="4000" rows="4" placeholder="负责什么、遵循什么规范、需要交付什么结果">${escape(employee.instructions)}</textarea></label>
+      <label>长期职责<textarea name="instructions" maxlength="4000" rows="4" placeholder="跨目标复用的职责和质量标准；具体功能与验收要求填写在项目目标中">${escape(employee.instructions)}</textarea></label>
+      ${employee.legacyInstructions ? `<details><summary>历史职位说明（已停用，仅供参考）</summary><p>${escape(employee.legacyPosition)}</p><pre>${escape(employee.legacyInstructions)}</pre></details>` : ''}
       <div class="employee-choices"><label class="inline-choice"><input type="checkbox" name="isLead" ${employee.isLead ? 'checked' : ''}>设为项目负责人</label><label class="inline-choice"><input type="checkbox" name="enabled" ${employee.enabled ? 'checked' : ''}>参与执行</label></div>
       <p class="setup-note">负责人理解目标、分配任务、跟进结果和核对交付。员工配置仅作用于本项目。</p>
       <div class="employee-grid"><label>执行宿主<select name="hostType">${options(hosts, employee.hostType)}</select></label><label>模型<input name="model" value="${escape(employee.model)}" maxlength="150"></label>
