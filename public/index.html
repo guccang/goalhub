@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- 本文件定义办公室优先的工作台、内联需求表单和按需展开的运行记录。 -->
+<!-- 主页面仅保留办公室和状态；导航、员工详情及低频操作使用独立面板。 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -15,7 +15,7 @@
   <script type="module" src="/app.js"></script>
 </head>
 <body>
-  <aside class="sidebar">
+  <dialog id="sidebar" class="sidebar" aria-label="项目与设置"><button class="icon-button sidebar-close" data-close-panel="sidebar" aria-label="收起侧栏">×</button>
     <a class="brand" href="/" aria-label="GoalHub 首页"><span class="brand-mark">g<span></span></span><span>GoalHub<small>目标执行工作台</small></span></a>
     <button class="primary new-button" data-action="new"><span aria-hidden="true">＋</span> 添加项目</button>
     <div class="nav-label">我的项目 <span id="project-count">0</span></div>
@@ -24,8 +24,9 @@
     <button class="secondary host-entry" data-action="host-setup">宿主配置与测试</button>
     <button class="text-button global-entry" data-action="global-usage" id="global-total">整体用量：未知</button>
     <div class="sidebar-bottom"><span class="connection-dot" id="connection-dot"></span><span id="connection">连接中</span><small>源码与执行记录保存在本机</small></div>
-  </aside>
+  </dialog>
   <main id="workspace">
+    <nav class="workspace-toolbar" aria-label="工作台操作"><button id="sidebar-toggle" class="text-button" data-panel="sidebar" aria-controls="sidebar" aria-expanded="false">☰ 项目与设置</button><details id="project-tools" class="project-menu" hidden><summary>项目选项</summary><div><button data-action="employee-details">员工与记录</button><button data-panel="goal-dialog">新需求</button><button data-panel="usage-dialog">上下文与用量</button><button data-action="manage-team">管理团队</button></div></details></nav>
     <div id="empty" class="empty-workspace">
       <div class="empty-visual" aria-hidden="true"><span class="goal-ring">◎</span><div class="trail"><i></i><i></i><i></i></div><span class="finish-mark">✓</span></div>
       <p class="intro-note">从想法，到经过验证的结果</p>
@@ -44,12 +45,10 @@
             <div class="office-canvas-wrap"><div id="office-canvas" role="img" aria-label="Munder Difflin 完整办公室。点击员工查看任务、验收与输出，点击负责人查看项目全部记录。"></div><p id="office-canvas-error" hidden></p></div>
             <div class="office-scene-footer"><div class="office-legend"><span><i class="working"></i>工作中</span><span><i class="success"></i>本轮结束</span><span><i class="blocked"></i>需要处理</span></div><div class="office-camera"><button data-office-camera="out" aria-label="缩小办公室">−</button><button data-office-camera="fit" aria-label="显示完整办公室">全景</button><button type="button" data-office-camera="expand" aria-label="展开办公室">展开</button><button data-office-camera="in" aria-label="放大办公室">＋</button><button data-office-camera="motion" id="office-motion" aria-pressed="false">减少动态</button></div></div>
           </div>
-          <details class="office-secondary"><summary>员工与运行输出</summary><div class="office-team-heading"><h3>项目员工</h3><button class="secondary" id="manage-employees">管理员工</button></div>
-          <div id="office-roster" class="office-roster" role="group" aria-label="选择办公室角色"></div>
-          <div id="employee-work"></div><section class="office-terminal"><div class="office-terminal-heading"><h2 id="office-output-title">角色输出</h2><button id="office-full-run" class="text-button" disabled>查看完整输入输出</button></div><pre id="office-output" tabindex="0" aria-label="所选角色的运行输出">选择一个角色查看运行记录。</pre></section>
-          </details><div class="office-attribution">完整办公室场景来自 <a href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noreferrer">Munder Difflin</a><a href="/office-license.txt" target="_blank" rel="noreferrer">代码 MIT 许可</a><a href="https://limezu.itch.io/" target="_blank" rel="noreferrer">像素素材：LimeZu</a><a href="/office-engine/ASSET-LICENSE.txt" target="_blank">素材许可</a><span>工作状态来自真实记录；散步、喝咖啡为场景动画。</span></div>
+<div class="office-attribution">完整办公室场景来自 <a href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noreferrer">Munder Difflin</a><a href="/office-license.txt" target="_blank" rel="noreferrer">代码 MIT 许可</a><a href="https://limezu.itch.io/" target="_blank" rel="noreferrer">像素素材：LimeZu</a><a href="/office-engine/ASSET-LICENSE.txt" target="_blank">素材许可</a><span>工作状态来自真实记录；散步、喝咖啡为场景动画。</span></div>
         </div>
-        <aside class="office-controls">
+
+<dialog id="employee-panel" class="detail-drawer" aria-labelledby="employee-panel-title"><div class="drawer-heading"><h2 id="employee-panel-title">员工详情</h2><button class="icon-button" data-close-panel="employee-panel" aria-label="关闭员工详情">×</button></div><div class="employee-panel-layout">        <aside class="office-controls">
           <div class="office-person"><canvas id="office-portrait" width="36" height="56" aria-hidden="true"></canvas><div><h2 id="office-agent-name">软件工程师</h2><span id="office-agent-status" class="office-state idle">待命</span></div></div>
           <p id="office-agent-host" class="office-agent-description"></p>
           <p id="office-agent-description" class="office-agent-description"></p>
@@ -58,11 +57,10 @@
           <form id="office-steer-form" class="office-control-section"><label for="office-instruction">补充执行要求</label><textarea id="office-instruction" name="content" required maxlength="10000" rows="4" placeholder="例如：优先完成搜索功能，补充空结果与中文搜索测试。"></textarea><p class="office-help">保存当前进度，将补充要求交给 Agent，然后继续执行。</p><button type="submit" class="secondary full-width" id="office-send">发送指令并继续</button></form>
           <details class="office-instructions"><summary>最近交接</summary><ol id="office-handoffs" class="office-handoffs"></ol></details>
           <details class="office-instructions"><summary>已记录的补充指令 <span id="office-instruction-count">0</span></summary><div id="office-instruction-history"></div></details>
-        </aside>
-      </section>
-      <section id="plan-preview" class="plan-preview" hidden></section>
-      <section id="question-panel" class="question-panel project-questions" hidden></section>
-      <section id="leader-records" hidden aria-labelledby="leader-records-title"><h2 id="leader-records-title">负责人 · 项目记录</h2><p class="subtle">在这里查看各次迭代的任务、验收、输入输出和步骤记录。</p>
+        </aside><div class="employee-panel-content">          <div class="office-secondary"><div class="office-team-heading"><h3>项目员工</h3><button class="secondary" id="manage-employees">管理员工</button></div>
+          <div id="office-roster" class="office-roster" role="group" aria-label="选择办公室角色"></div>
+          <div id="employee-work"></div><section class="office-terminal"><div class="office-terminal-heading"><h2 id="office-output-title">角色输出</h2><button id="office-full-run" class="text-button" disabled>查看完整输入输出</button></div><pre id="office-output" tabindex="0" aria-label="所选角色的运行输出">选择一个角色查看运行记录。</pre></section>
+          </div>      <section id="leader-records" hidden aria-labelledby="leader-records-title"><h2 id="leader-records-title">负责人 · 项目记录</h2><p class="subtle">在这里查看各次迭代的任务、验收、输入输出和步骤记录。</p>
       <section class="iteration-panel"><div class="iteration-toolbar"><label for="iteration-select">目标与迭代<select id="iteration-select"></select></label></div><details><summary>仓库信息</summary><small id="project-repository"></small></details></section>
       <div class="project-body" id="dashboard-view">
         <div class="main-column">
@@ -85,7 +83,10 @@
         </aside>
       </div>
       </section>
-  <section id="create-dialog" class="goal-composer" aria-labelledby="composer-title">
+</div></div></dialog>      </section>
+    </section>
+  </main>
+<dialog id="goal-dialog" class="detail-drawer narrow-drawer" aria-labelledby="composer-title"><div class="drawer-heading"><span>需求</span><button class="icon-button" data-close-panel="goal-dialog" aria-label="关闭需求">×</button></div>  <section id="create-dialog" class="goal-composer" aria-labelledby="composer-title">
     <div class="dialog-header"><div><h2 id="composer-title">下一步，想做什么？</h2><p id="goal-project-label">在当前项目中继续迭代，协调者会阅读已有代码和历史上下文。</p></div></div>
 
     <section id="setup-goal">
@@ -104,9 +105,10 @@
     </section>
   </section>
 
-      <details class="usage-panel"><summary id="usage-summary">项目上下文与用量</summary><p class="subtle">上下文容量按会话显示；累计用量按目标、项目汇总。未知表示宿主未上报，缓存读取已包含在输入中。</p><div id="session-metrics"></div><div class="table-scroll" id="project-usage"></div><details><summary>按日期、目标、角色和模型查看明细</summary><div class="table-scroll" id="project-usage-details"></div></details><button class="text-button" data-action="reset-session" id="reset-session">下次使用新会话（保留项目历史）</button></details>
-    </section>
-  </main>
+</dialog><dialog id="usage-dialog" class="detail-drawer" aria-labelledby="usage-summary"><div class="drawer-heading"><span>项目统计</span><button class="icon-button" data-close-panel="usage-dialog" aria-label="关闭用量详情">×</button></div>      <section class="usage-panel"><h2 id="usage-summary">项目上下文与用量</h2><p class="subtle">上下文容量按会话显示；累计用量按目标、项目汇总。未知表示宿主未上报，缓存读取已包含在输入中。</p><div id="session-metrics"></div><div class="table-scroll" id="project-usage"></div><details><summary>按日期、目标、角色和模型查看明细</summary><div class="table-scroll" id="project-usage-details"></div></details><button class="text-button" data-action="reset-session" id="reset-session">下次使用新会话（保留项目历史）</button></section></dialog><dialog id="attention-dialog" class="detail-drawer" aria-label="需要你处理"><div class="drawer-heading"><h2>需要你处理</h2><button class="icon-button" data-close-panel="attention-dialog" aria-label="关闭待办">×</button></div>      <section id="plan-preview" class="plan-preview" hidden></section>
+      <section id="question-panel" class="question-panel project-questions" hidden></section>
+
+</dialog>
   <dialog id="employees-dialog" class="create-dialog setup-dialog team-dialog"><div class="dialog-header"><div><h2>项目团队</h2><p id="team-project-name"></p></div><button type="button" class="icon-button" data-close-employees aria-label="关闭员工管理">×</button></div>
     <section class="team-generator"><h3>God 一键搭建团队</h3><label>项目目标<textarea id="team-generation-goal" rows="3" maxlength="30000" placeholder="描述项目目标和期望交付"></textarea></label><p class="setup-note">由 GoalHub 独立管理者 God 生成，执行配置可在侧栏「God · GoalHub 管理者」中调整。生成后可调整员工、职位和工作说明，保存后生效。</p><div class="team-generator-actions"><button type="button" id="generate-team" class="primary">God 一键搭建团队</button><button type="button" id="cancel-team-generation" class="secondary" hidden>取消生成</button><button type="button" id="load-team-proposal" class="secondary" hidden>载入上次生成方案</button><button type="button" id="undo-team-proposal" class="secondary" hidden>恢复生成前草稿</button></div><p id="team-generation-status" role="status" aria-live="polite"></p></section><form><fieldset id="team-edit-fields"><details class="team-context"><summary>项目上下文与语言</summary><p class="setup-note">团队共享这些要求，每名员工再根据自己的职位完成任务。</p><label>架构、需求背景与项目规范<textarea id="project-context" maxlength="20000" rows="4" placeholder="项目采用什么架构、有哪些长期约束和交付规范"></textarea></label><label>项目默认语言<select id="project-language" aria-label="项目默认语言"></select></label></details>
     <div class="team-copy"><select id="copy-team-source" aria-label="复制团队的来源项目"></select><button type="button" class="secondary" id="copy-team">复制团队到草稿</button></div><p id="team-leader-note" class="setup-note" role="status"></p>

@@ -96,7 +96,6 @@ export class OfficeView {
     // 点击角色时展开输出，保持场景查看记录的入口可达。
     this.root.classList.remove('expanded');
     const expand = this.find('[data-office-camera=expand]'); expand.textContent = '展开'; expand.setAttribute('aria-label', '展开办公室');
-    this.find('.office-secondary').open = true;
     this.selected = role; this.outputKey = null;
     this.scene?.select(role); this.renderRoster(); this.renderActor();
     this.onSelect?.(this.snapshot.actors.find(actor => actor.id === role));
@@ -144,7 +143,7 @@ export class OfficeView {
   // renderEmployeeWork 普通员工展示分配任务及对应验收，负责人集中提供项目档案。
   renderEmployeeWork(actor) {
     const target = this.find('#employee-work');
-    if (actor.isLead) { this.workContent = null; target.innerHTML = '<p class="office-help">点击负责人后，可在办公室下方查看项目全部记录和历史迭代。</p>'; return; }
+    if (actor.isLead) { this.workContent = null; target.innerHTML = '<p class="office-help">下方可查看项目全部记录和历史迭代。</p>'; return; }
     const tasks = this.project.tasks.filter(task => task.assignee === actor.id);
     const checkIds = new Set(tasks.flatMap(task => task.check_ids));
     const checks = this.project.checks.filter(check => checkIds.has(check.id));
@@ -167,7 +166,7 @@ export class OfficeView {
     this.find('#office-instruction').disabled = pending || locked;
     this.find('#office-send').disabled = pending || locked;
     this.find('#office-send').textContent = this.sending ? '正在保存并重新调度…' : '发送指令并继续';
-    this.find('#office-control-hint').textContent = ['waiting_input', 'awaiting_approval'].includes(project.status) ? '请先在办公室下方完成问题回答或计划确认。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : '控制作用于当前项目。减少动态只影响画面，不会暂停 Agent。';
+    this.find('#office-control-hint').textContent = ['waiting_input', 'awaiting_approval'].includes(project.status) ? '请通过主页面的待办入口完成问题回答或计划确认。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : '控制作用于当前项目。减少动态只影响画面，不会暂停 Agent。';
   }
 
   // renderHistory 展示真实交接与已持久化的补充指令。
