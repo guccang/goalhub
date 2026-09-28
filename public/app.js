@@ -211,7 +211,7 @@ async function refresh() {
 // selectProject 清理上一个项目的筛选和表单状态。
 async function selectProject(id) {
   recordsOwner = null;
-  for (const id of ['sidebar', 'employee-panel', 'goal-dialog', 'usage-dialog', 'attention-dialog']) closePanel(id);
+  for (const id of ['sidebar', 'employee-panel', 'goal-dialog', 'usage-dialog', 'attention-dialog', 'delivery-summary-dialog', 'delivery-dialog']) closePanel(id);
   selectedGoal = ''; selected = id; localStorage.setItem('goalhub.project', id); questionsKey = ''; historyMode = false; events = []; search = ''; kind = '';
   $('#log-search').reset();
   const detail = await api(`/projects/${id}`);
