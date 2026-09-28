@@ -1,7 +1,7 @@
 // 本文件使用真实 Git、Node 子进程、HTTP 服务和文件下载验证完整交付生命周期。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, isAbsolute } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -130,4 +130,35 @@ test('交付配置拒绝路径穿越、绝对路径、非安装包和错误端�
   for (const path of ['../secret.exe', 'C:\\secret.exe', '/tmp/secret.exe', '.git/config.exe', 'dist/app.txt']) assert.throws(() => validateDelivery({ kind: 'desktop', build: 'node build.mjs', verify: 'node verify.mjs', artifacts: [path], instructions: '说明' }));
   assert.throws(() => validateDelivery({ kind: 'android', build: 'build', verify: 'verify', artifacts: ['dist/app.aab'], instructions: '说明' }));
   assert.throws(() => validateDelivery({ kind: 'web', build: 'build', preview: 'serve --port {port}', port: 80, instructions: '说明' }));
+});
+
+test('旧静态网页无需清单即可构建预览，且不会公开源码和内部文件', async t => {
+  const f = await fixture(t);
+  unlinkSync(join(f.paths.work, 'package.json'));
+  writeFileSync(join(f.paths.work, 'index.html'), '<!doctype html><h1>Legacy preview</h1><script src="app.js"></script>');
+  writeFileSync(join(f.paths.work, 'app.js'), '// 静态资源示例\nconsole.log("ready");');
+  await f.git.checkpoint(f.project.id, 'legacy static page');
+  const id = await f.manager.prepare(f.project.id, f.paths.work);
+  assert.match(f.manager.snapshot(f.project.id).release.log, /自动识别静态网页/);
+  assert.equal(existsSync(join(f.paths.work, 'goalhub.delivery.json')), false);
+  await f.git.complete(f.project.id); f.manager.publish(id);
+  const port = await unusedPort(); await f.manager.startPreview(id, port);
+  const base = `http://127.0.0.1:${port}`;
+  assert.match(await (await fetch(base)).text(), /Legacy preview/);
+  assert.match(await (await fetch(base + '/app.js')).text(), /console.log/);
+  for (const path of ['/.git/config', '/GOAL.md', '/%2e%2e%2fstatic-preview.mjs', '/%ZZ']) assert.equal((await fetch(base + path)).status, 404);
+  assert.equal((await fetch(base, { method: 'POST' })).status, 405);
+  const head = await fetch(base, { method: 'HEAD' }); assert.equal(head.status, 200); assert.equal(await head.text(), '');
+  await f.manager.stopPreview(id);
+});
+
+test('框架入口和无效清单不会被静态自动识别掩盖', async t => {
+  const f = await fixture(t);
+  writeFileSync(join(f.paths.work, 'index.html'), '<html><body>Framework entry</body></html>');
+  await f.git.checkpoint(f.project.id, 'framework entry');
+  await assert.rejects(f.manager.prepare(f.project.id, f.paths.work), /无法识别/);
+  unlinkSync(join(f.paths.work, 'package.json'));
+  writeFileSync(join(f.paths.work, 'goalhub.delivery.json'), '{broken');
+  await f.git.checkpoint(f.project.id, 'invalid manifest');
+  await assert.rejects(f.manager.prepare(f.project.id, f.paths.work), /无效/);
 });

@@ -27,7 +27,7 @@ export class DeliveryPanel {
     const disabled = this.pending ? 'disabled' : '', statuses = { building: '构建中', verified: '交付验证通过，等待源码合并', ready: '可使用', failed: '交付失败' };
     const previews = { stopped: '未启动', interrupted: '服务重启后已中断', starting: '正在启动', running: '运行中', failed: '启动失败或已退出' };
     this.panel.innerHTML = `<div class="delivery-heading"><h2>项目交付</h2><span>${release ? `${escape(kinds[release.kind] || '交付')} · ${escape(statuses[release.status])}` : '尚未生成交付'}</span></div>
-      <p>${release ? escape(release.instructions) : '完成前会验证预览或安装包。已有项目可补充交付设置后构建。'}</p>
+      <p>${release?.instructions ? escape(release.instructions) : '点击构建将自动识别无构建步骤的静态网页；其他项目使用仓库交付配置，也可在“交付设置”中填写。'}</p>
       <div class="delivery-actions">${!project.historical ? `<button class="secondary" data-delivery="config" ${project.active || state.building ? 'disabled' : disabled}>交付设置</button><button class="secondary" data-delivery="build" ${project.status !== 'completed' || project.active || state.building ? 'disabled' : disabled}>${release ? '重新构建交付' : '构建交付'}</button>` : ''}
       ${state.building && !project.active ? `<button class="secondary" data-delivery="cancel" ${disabled}>取消构建</button>` : ''}
       ${release?.status === 'ready' && release.kind === 'web' ? `<label>预览端口<input data-delivery-port type="number" min="1024" max="65535" value="${escape(previousPort || release.port || 4173)}" ${release.preview === 'running' || release.preview === 'starting' ? 'disabled' : ''}></label><button class="primary" data-delivery="start" ${release.preview === 'running' || release.preview === 'starting' ? 'disabled' : disabled}>启动预览</button><button class="secondary" data-delivery="stop" ${['running', 'starting'].includes(release.preview) ? disabled : 'disabled'}>停止预览</button><span>${escape(previews[release.preview])}</span>${release.url ? `<a class="primary" href="${escape(release.url)}" target="_blank" rel="noopener noreferrer">打开预览 ↗</a>` : ''}` : ''}</div>
@@ -52,7 +52,8 @@ export class DeliveryPanel {
   // open 复制项目设置或最近使用的仓库配置，未保存编辑只存在于当前表单。
   open(project) {
     this.editProject = project.id;
-    const config = project.settings.delivery || project.delivery?.config || { kind: 'web', port: 4173 };
+    const saved = project.settings.delivery || project.delivery?.config;
+    const config = saved?.kind ? saved : { kind: 'web', port: 4173 };
     for (const name of ['kind', 'build', 'verify', 'preview', 'port', 'instructions']) this.form.elements[name].value = config[name] ?? '';
     this.form.elements.artifacts.value = (config.artifacts || []).join('\n');
     this.dialog.querySelector('#delivery-error').textContent = ''; this.paintFields(); this.dialog.showModal();
