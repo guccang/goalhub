@@ -259,7 +259,8 @@ export function OfficeFloor() {
       // Load the active theme bundle (falls back to 'office' on a bad/absent bundle).
       const theme = await loadTheme(officeTheme);
       await app.init({
-        background: hexNum(theme.palette.background),
+        // 透明清屏让地图边缘融入页面，不再绘制深色背景。
+        backgroundAlpha: 0,
         antialias: false,
         roundPixels: true,
         // resolution: 1 let the OS/browser upscale the canvas on scaled and
@@ -1792,7 +1793,7 @@ export function OfficeFloor() {
         boxShadow: 'var(--cth-panel-border)',
         overflow: 'hidden',
         imageRendering: 'auto',
-        background: hex(colors.ink[900]),
+        background: 'transparent',
       }}
     />
   );

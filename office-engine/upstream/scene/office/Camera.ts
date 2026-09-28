@@ -44,6 +44,9 @@ export class Camera {
     this.viewWidth = width;
     this.viewHeight = height;
     if (!this.manualOverride) this.fitToScreen();
+    // 调整窗口后缩放不得小于全景比例，防止已手动缩放的视图再次露出留白。
+    else this.targetZoom = Math.max(this.getMinZoom(), this.targetZoom);
+    this.settle();
   }
 
   // getMinZoom：保留原版办公室的绘制、交互或资源管理行为。

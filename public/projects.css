@@ -106,3 +106,12 @@ body:has(dialog[open]) { overflow:hidden; }
  .drawer-heading { padding:12px 14px; }
  #office-canvas { height:clamp(260px,calc(100dvh - 370px),600px); }
 }
+
+/* 画布始终匹配地图比例，卡片宽度随可用高度收敛，避免全景出现宽黑边。 */
+.office-view { --office-height:min(760px,max(220px,calc(100dvh - 290px))); }
+.office-view .office-scene-card { width:min(100%,calc(var(--office-height) * 34 / 22)); margin-inline:auto; }
+.office-view #office-canvas,.office-view.expanded #office-canvas { width:100%; height:auto; min-height:0; aspect-ratio:34 / 22; }
+.office-view .office-canvas-wrap { background:#eef2e9; }
+.office-view.expanded { --office-height:76dvh; }
+.office-attribution { text-align:center; }
+@media(max-width:700px) { .office-view { --office-height:max(220px,calc(100dvh - 320px)); } }
