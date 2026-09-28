@@ -10,7 +10,7 @@ function time(value) { return new Date(value).toLocaleTimeString('zh-CN', { hour
 
 export class OfficeView {
   // constructor 初始化一次性的办公室组件与控制事件。
-  constructor({ onAction, onSteer, onError }) {
+  constructor({ onAction, onSteer, onError, onManage }) {
     this.root = document.querySelector('#office-view'); this.selected = 'developer'; this.online = true; this.sending = false; this.drafts = new Map();
     try { this.scene = new OfficeScene(this.find('#office-canvas'), (role) => this.select(role)); }
     catch (error) { this.find('#office-canvas-error').hidden = false; this.find('#office-canvas-error').textContent = `画布暂不可用，可使用下方角色列表与控制面板：${error.message}`; }
@@ -22,6 +22,7 @@ export class OfficeView {
       else { this.root.classList.remove('expanded'); this.find('#office-run-control').scrollIntoView({ block: 'center' }); }
     });
     this.find('#office-motion').setAttribute('aria-pressed', String(!this.scene?.motion));
+    this.find('#manage-employees').addEventListener('click', () => onManage());
     this.root.addEventListener('click', async (event) => {
       const button = event.target.closest('button');
       if (!button) return;
@@ -92,6 +93,7 @@ export class OfficeView {
       this.outputKey = null; this.rosterKey = null;
     }
     this.project = project; this.snapshot = project.office; this.busy = busy; this.online = true;
+    if (!this.snapshot.actors.some(actor => actor.id === this.selected)) { this.selected = this.snapshot.actors[0]?.id || 'test'; this.outputKey = null; }
     this.scene?.update(project.office, reconnect); this.scene?.select(this.selected);
     this.find('#office-connection').textContent = `已同步 ${time(project.office.synchronizedAt)}`;
     this.find('#office-connection').classList.remove('offline');
@@ -109,7 +111,7 @@ export class OfficeView {
 
   // renderRoster 在状态变化时更新可键盘操作的角色按钮。
   renderRoster() {
-    const signature = JSON.stringify(this.snapshot.actors.map((actor) => [actor.id, actor.state, actor.character, this.selected === actor.id]));
+    const signature = JSON.stringify(this.snapshot.actors.map((actor) => [actor.id, actor.name, actor.state, actor.character, this.selected === actor.id]));
     if (signature === this.rosterKey) return;
     this.rosterKey = signature;
     const focused = document.activeElement?.dataset.officeRole;
@@ -129,7 +131,7 @@ export class OfficeView {
     const portrait = this.find('#office-portrait'); portrait.hidden = actor.kind === 'facility';
     if (!portrait.hidden) paintPortrait(portrait.getContext('2d'), actor.character, 2);
     const hosts = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
-    this.find('#office-agent-host').textContent = actor.kind === 'facility' ? '设施 · 本机测试进程' : `职位：${actor.name} · 执行宿主：${hosts[actor.hostType] || actor.hostType}`;
+    this.find('#office-agent-host').textContent = actor.kind === 'facility' ? '设施 · 本机测试进程' : `职位：${actor.title || actor.name} · 宿主：${hosts[actor.hostType] || actor.hostType} · 模型：${actor.model || '默认'} · 思考：${actor.reasoningEffort || '默认'}${actor.enabled === false ? ' · 未参与执行' : ''}`;
     this.find('#office-agent-name').textContent = actor.name;
     const state = this.find('#office-agent-status'); state.textContent = states[actor.state]; state.className = `office-state ${actor.state}`;
     this.find('#office-agent-description').textContent = actor.description;
@@ -156,7 +158,7 @@ export class OfficeView {
     run.dataset.officeControl = project.active ? 'pause' : 'start';
     run.textContent = project.status === 'awaiting_approval' ? '等待计划确认' : project.status === 'completed' ? '项目已完成' : project.active ? '暂停项目' : '继续执行';
     run.disabled = pending || project.status === 'completed' || (!project.active && ['waiting_input', 'awaiting_approval'].includes(project.status));
-    review.disabled = pending || !project.active || project.status !== 'running' || this.snapshot.actors.some((actor) => actor.id === 'evaluator' && actor.state === 'working');
+    review.disabled = pending || !project.active || project.status !== 'running' || this.snapshot.actors.some((actor) => actor.role === 'evaluator' && actor.state === 'working');
     const locked = ['completed', 'waiting_input', 'awaiting_approval'].includes(project.status);
     this.find('#office-instruction').disabled = pending || locked;
     this.find('#office-send').disabled = pending || locked;

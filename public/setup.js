@@ -22,6 +22,7 @@ export class SetupFlow {
     this.find('#back-host').addEventListener('click', () => this.openHost(true).catch(error => this.error(error)));
     this.find('#host-dialog').addEventListener('cancel', event => { event.preventDefault(); this.closeHost(); });
     this.find('#create-form').addEventListener('submit', event => { event.preventDefault(); this.create(event.currentTarget); });
+    this.find('#create-form [name=configureTeam]').addEventListener('change', event => { this.find('#create-form [type=submit]').textContent = event.target.checked ? '创建项目并配置员工' : '生成拆解预览'; });
     setInterval(() => { if ((this.find('#create-dialog').open || this.find('#host-dialog').open) && !this.polling && !this.pending) this.poll().catch(error => this.error(error)); }, 1500);
   }
   // find 读取向导内固定元素。
@@ -142,8 +143,11 @@ export class SetupFlow {
       if (!this.passed()) throw new Error('请先在全局宿主设置中通过连通性测试');
       const values = Object.fromEntries(new FormData(form));
       const hostTestId = this.state.tests.find(test => test.revision === this.state.revision).id;
-      const created = await this.api('/projects', { name: values.name, goal: values.goal, hostTestId, settings: { confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
-      this.find('#create-dialog').close(); form.reset(); await this.selectProject(created.id); await this.refresh(); this.toast('正在生成拆解预览');
+      const configureTeam = values.configureTeam === 'on';
+      const created = await this.api('/projects', { name: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam, settings: { confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
+      this.find('#create-dialog').close(); form.reset(); button.textContent = '生成拆解预览'; await this.selectProject(created.id); await this.refresh();
+      if (configureTeam) { document.querySelector('#mode-office').click(); document.querySelector('#manage-employees').click(); this.toast('请配置员工，保存后点击继续执行开始规划'); }
+      else this.toast('正在生成拆解预览');
     } catch (error) { this.find('#create-error').textContent = error.message; }
     finally { this.creating = false; this.paint(); }
   }

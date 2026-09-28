@@ -51,3 +51,9 @@ dialog::backdrop { backdrop-filter:none; }
 .host-detail { font-size:12px; color:#52647a; }
 #host-config-title { border-top:1px solid #e1e7f0; padding-top:20px; margin:20px 0 14px; }
 @media(max-width:480px) { .host-cards { grid-template-columns:1fr; }.host-overview-heading { align-items:flex-start; flex-direction:column; } }
+/* 项目员工按职责编辑，窄屏改为单列，参数说明保持可读。 */
+.employee-editor { margin:18px 0; padding:16px; border:1px solid #cbd5df; border-radius:8px; }
+.employee-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.employee-editor>label { margin:12px 0; }
+.office-team-heading { display:flex; align-items:center; justify-content:space-between; margin:16px 0; }
+@media(max-width:560px) { .employee-grid { grid-template-columns:1fr; } }

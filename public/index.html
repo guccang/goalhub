@@ -43,6 +43,7 @@
             <div class="office-canvas-wrap"><div id="office-canvas" role="img" aria-label="Munder Difflin 完整办公室。点击角色查看输出，点击看板、日历或时钟打开对应控制。"></div><p id="office-canvas-error" hidden></p></div>
             <div class="office-scene-footer"><div class="office-legend"><span><i class="working"></i>工作中</span><span><i class="success"></i>本轮结束</span><span><i class="blocked"></i>需要处理</span></div><div class="office-camera"><button data-office-camera="out" aria-label="缩小办公室">−</button><button data-office-camera="fit" aria-label="显示完整办公室">全景</button><button type="button" data-office-camera="expand" aria-label="展开办公室">展开</button><button data-office-camera="in" aria-label="放大办公室">＋</button><button data-office-camera="motion" id="office-motion" aria-pressed="false">减少动态</button></div></div>
           </div>
+          <div class="office-team-heading"><h3>项目员工</h3><button class="secondary" id="manage-employees">管理员工</button></div>
           <div id="office-roster" class="office-roster" role="group" aria-label="选择办公室角色"></div>
           <nav class="office-facilities" aria-label="办公室设施"><button data-office-place="tasks">任务看板</button><button data-office-place="meeting">会议桌</button><button data-office-role="test" id="office-test-station">测试工作站</button><button data-office-place="archive">档案柜</button></nav>
           <section class="office-terminal"><div class="office-terminal-heading"><h2 id="office-output-title">角色输出</h2><button id="office-full-run" class="text-button" disabled>查看完整输入输出</button></div><pre id="office-output" tabindex="0" aria-label="所选角色的运行输出">选择一个角色查看运行记录。</pre></section>
@@ -81,6 +82,7 @@
       </div>
     </section>
   </main>
+  <dialog id="employees-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><div><h2>项目员工管理</h2><p>每个项目独立组建团队，认证凭据使用全局宿主配置。</p></div><button type="button" class="icon-button" data-close-employees aria-label="关闭员工管理">×</button></div><p class="setup-note">同职责员工按轮次分配；每类职责至少一名启用员工才能开始执行。请暂停项目后保存。思考强度目前仅 Codex 支持，具体取值需模型支持。</p><form><div id="employee-list"></div><button type="button" class="secondary" id="add-employee">增加员工</button><p id="employee-error" class="form-error" role="alert"></p><div class="dialog-footer"><button type="submit" class="primary">保存项目团队</button></div></form></dialog>
   <dialog id="host-dialog" class="create-dialog setup-dialog">
     <div class="dialog-header"><div><h2>全局宿主配置与测试</h2><p>所有目标共用此配置与测试结果。配置一次，通过后可用于多个目标。</p></div><button type="button" class="icon-button" data-action="close-host" aria-label="关闭宿主设置">×</button></div>
     <section id="setup-host">
@@ -118,6 +120,7 @@
         <label>项目名称<input name="name" required maxlength="100" placeholder="例如：团队知识库" autocomplete="off"></label>
         <label>目标与完成条件<textarea name="goal" required maxlength="30000" rows="5" placeholder="描述功能、约束和完成标准，规划 Agent 将生成任务与验收项目。"></textarea></label>
         <label>计划确认方式<select name="confirmationMode"><option value="manual">人工确认：预览计划，确认后开始实现</option><option value="auto">自动确认：生成计划后自动开始实现</option></select></label>
+        <label class="inline-choice"><input name="configureTeam" type="checkbox">先配置项目员工，再开始规划</label>
         <details class="advanced"><summary>评估间隔与执行时限</summary><label>评估间隔（分钟）<input name="evaluationMinutes" type="number" min="0.1" max="1440" step="0.1" value="5" required></label><div class="form-grid"><label>单轮 Agent 时限（分钟）<input name="agentTimeoutMinutes" type="number" min="1" max="240" value="30" required></label><label>单项测试时限（秒）<input name="testTimeoutSeconds" type="number" min="5" max="3600" value="120" required></label></div></details>
         <div class="create-note">先生成拆解预览。缺少必要信息时会提问；人工确认前不会启动开发。源码使用独立 Git 仓库，步骤记录保存在 SQLite。</div>
         <div id="create-error" class="form-error" role="alert"></div><div class="dialog-footer"><button type="button" class="secondary" id="back-host">管理全局宿主</button><button type="submit" class="primary">生成拆解预览</button></div>

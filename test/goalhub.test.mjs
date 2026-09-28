@@ -10,6 +10,7 @@ import { Orchestrator } from '../lib/orchestrator.mjs';
 import { createApp } from '../lib/app.mjs';
 import { validatePlan } from '../lib/protocol.mjs';
 import { Runtime } from '../lib/runtime.mjs';
+import { team, validateTeam, assignEmployee, requireTeam } from '../lib/employees.mjs';
 import { buildOfficeSnapshot } from '../lib/office.mjs';
 import { sceneFrameBufs, SCENE_W, SCENE_H } from '../public/vendor/munder-difflin/portrait-art.js';
 
@@ -372,4 +373,58 @@ test('自动确认模式生成计划后持续执行并记录确认', async (t) =
   f.orchestrator.start(project.id); await waitUntil(() => !f.orchestrator.controls.has(project.id), '自动执行未完成');
   assert.equal(f.store.project(project.id).status, 'completed');
   assert.ok(f.store.events(project.id, { kind: 'plan.approved' }).some(event => event.content.includes('自动确认')));
+});
+
+// 员工配置必须影响真实调度参数，并随轮次留存，不能只是办公室外观。
+test('项目员工宿主模型思考强度传入执行并保留审计快照', async t => {
+  const f = fixture(t), employees = team(f.project);
+  employees[0].model = 'planning-model'; employees[0].reasoningEffort = 'high';
+  employees[1].name = '前端工程师'; employees[1].hostType = 'claudecode'; employees[1].model = 'vendor/frontend'; employees[1].instructions = '优先保证可访问性';
+  f.store.saveEmployees(f.project.id, validateTeam(employees));
+  f.orchestrator.start(f.project.id); await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '员工执行未完成');
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.calls.find(call => call.role === 'planner').reasoningEffort, 'high');
+  assert.equal(f.calls.find(call => call.role === 'planner').model, 'planning-model');
+  const developer = f.calls.find(call => call.role === 'developer');
+  assert.equal(developer.hostType, 'claudecode'); assert.equal(developer.model, 'vendor/frontend'); assert.match(developer.input, /优先保证可访问性/);
+  const run = f.store.employeeRun(f.project.id, employees[1]);
+  assert.equal(JSON.parse(run.executor).name, '前端工程师');
+  f.store.saveEmployees(f.project.id, employees.filter(employee => employee.role !== 'developer'));
+  assert.ok(f.store.run(run.id)); assert.throws(() => requireTeam(f.store.project(f.project.id)), /软件工程师/);
+  const other = f.store.create({ name: '另一项目', goal: '独立设置', settings: f.project.settings });
+  assert.equal(team(other)[1].hostType, 'codex');
+});
+
+// 同职责分配轮换，但会话只在员工与完整配置相同的情况下复用。
+test('员工轮换与模型切换隔离会话，重复编号和不支持的参数被拒绝', t => {
+  const f = fixture(t), employees = team(f.project);
+  employees.push({ ...employees[1], id: 'second-dev', name: '第二开发员工' });
+  f.store.saveEmployees(f.project.id, validateTeam(employees));
+  const first = assignEmployee(f.store, f.store.project(f.project.id), 'developer');
+  const run = f.store.beginRun(f.project.id, 'developer', '任务', first); f.store.session(run, 'session-first'); f.store.finishRun(run, 'completed', 'done');
+  const second = assignEmployee(f.store, f.store.project(f.project.id), 'developer'); assert.equal(second.id, 'second-dev');
+  assert.equal(f.store.employeeSession(f.project.id, 'developer', second.configKey), '');
+  assert.equal(f.store.employeeSession(f.project.id, 'developer', first.configKey), 'session-first');
+  employees.splice(-1); employees[1].model = 'another-model'; f.store.saveEmployees(f.project.id, employees);
+  const changed = assignEmployee(f.store, f.store.project(f.project.id), 'developer');
+  assert.notEqual(changed.configKey, first.configKey); assert.equal(f.store.employeeSession(f.project.id, 'developer', changed.configKey), '');
+  assert.throws(() => validateTeam([...employees, employees[0]]), /重复/);
+  assert.throws(() => validateTeam([{ ...employees[0], hostType: 'claudecode', reasoningEffort: 'high' }]), /仅 Codex/);
+});
+
+// HTTP 层必须拒绝运行中修改与跨源写入，暂停后可独立保存项目员工。
+test('员工管理接口拒绝运行中变更并在暂停后持久化', async t => {
+  const f = fixture(t), server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const url = `http://127.0.0.1:${server.address().port}/api/projects/${f.project.id}/employees`;
+  const original = await (await fetch(url)).json(); assert.equal(original.employees.length, 4);
+  original.employees[1].model = 'project-specific';
+  const request = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employees: original.employees }) };
+  f.orchestrator.controls.set(f.project.id, {});
+  assert.equal((await fetch(url, request)).status, 400); f.orchestrator.controls.delete(f.project.id);
+  assert.equal((await fetch(url, { ...request, headers: { ...request.headers, Origin: 'https://evil.example' } })).status, 403);
+  assert.equal((await fetch(url, request)).status, 200);
+  assert.equal((await (await fetch(url)).json()).employees[1].model, 'project-specific');
+  assert.ok(f.store.events(f.project.id).some(event => event.kind === 'team.updated'));
 });
