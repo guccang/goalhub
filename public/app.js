@@ -1,4 +1,5 @@
 // 本文件驱动目标工作台，定期读取 SQLite 状态并提供创建、问答、暂停和日志查询交互。
+import { OfficeView } from './office-view.js';
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
 const labels = { paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
@@ -7,6 +8,18 @@ const hostLabels = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harnes
 let selected = localStorage.getItem('goalhub.project') || '', project = null, projects = [], tab = 'tasks', busy = false, refreshInFlight = false;
 let events = [], search = '', kind = '', questionsKey = '', toastTimer, eventProject = '', historyMode = false;
 const markupCache = new WeakMap();
+let mode = localStorage.getItem('goalhub.view') === 'dashboard' ? 'dashboard' : 'office';
+const office = new OfficeView({ onAction: action, onError: toast,
+  // sendSteer 使用提交时的项目编号，避免切换项目后把指令发给另一个目标。
+  onSteer: async (id, content) => { await api(`/projects/${id}/steer`, { content }); await refresh(); toast('补充指令已记录，正在继续执行'); },
+});
+
+// setMode 在办公室和任务记录之间切换，不改变项目的执行状态。
+function setMode(value) {
+  mode = value; localStorage.setItem('goalhub.view', mode);
+  for (const name of ['office', 'dashboard']) { $(`#${name}-view`).hidden = mode !== name; $(`#mode-${name}`).setAttribute('aria-selected', String(mode === name)); }
+  office.setVisible(!!project && mode === 'office');
+}
 
 // html 仅在内容变化时替换节点，保留轮询期间的键盘焦点与详情展开状态。
 function html(selector, value) {
@@ -56,7 +69,8 @@ function renderQuestions() {
 // renderProject 更新任务与证据区域，保留用户打开的测试详情。
 function renderProject() {
   $('#empty').hidden = !!project; $('#project').hidden = !project;
-  if (!project) return;
+  if (!project) { office.setVisible(false); return; }
+  office.update(project, busy); office.setVisible(mode === 'office');
   $('#project-title').textContent = project.name; document.title = `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
   html('#project-actions', project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : project.status === 'waiting_input' ? '' : '<button class="primary" data-action="start">继续执行</button>');
@@ -133,7 +147,7 @@ async function refresh() {
       project = detail; renderProject();
       if (tab === 'activity' && (!historyMode || eventProject !== selected)) await loadEvents();
     } else { project = null; renderProject(); }
-  } catch (error) { $('#connection').textContent = '连接中断，正在重试'; $('#connection-dot').className = 'connection-dot error'; }
+  } catch (error) { $('#connection').textContent = '连接中断，正在重试'; $('#connection-dot').className = 'connection-dot error'; office.disconnected(); }
   finally { refreshInFlight = false; }
 }
 
@@ -141,7 +155,9 @@ async function refresh() {
 async function selectProject(id) {
   selected = id; localStorage.setItem('goalhub.project', id); questionsKey = ''; historyMode = false; events = []; search = ''; kind = '';
   $('#log-search').reset();
-  project = await api(`/projects/${id}`); navigation(); renderProject();
+  const detail = await api(`/projects/${id}`);
+  if (id !== selected) return;
+  project = detail; navigation(); renderProject();
   if (tab === 'activity') await loadEvents();
 }
 
@@ -168,6 +184,7 @@ document.addEventListener('click', async (event) => {
   if (!button) return;
   try {
     if (button.dataset.action) await action(button.dataset.action);
+    if (button.dataset.mode) setMode(button.dataset.mode);
     if (button.dataset.project) await selectProject(button.dataset.project);
     if (button.dataset.tab) {
       tab = button.dataset.tab;
@@ -213,5 +230,6 @@ $('#log-search').addEventListener('submit', async (event) => {
   try { await loadEvents(); } catch (error) { toast(error.message); }
 });
 
+setMode(mode);
 await refresh();
 setInterval(refresh, 2000);

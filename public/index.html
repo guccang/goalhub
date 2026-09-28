@@ -8,6 +8,7 @@
   <title>GoalHub · 目标执行工作台</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/office.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
@@ -29,10 +30,32 @@
     </div>
     <section id="project" hidden>
       <header class="project-header"><div><div class="breadcrumb">我的项目 <span>/</span> 执行工作台</div><h1 id="project-title"></h1><div class="header-meta"><span id="project-status"></span><span id="project-created"></span></div></div><div class="header-actions" id="project-actions"></div></header>
-      <div class="project-body">
+      <div class="workspace-mode" role="tablist" aria-label="工作区视图"><button role="tab" id="mode-office" data-mode="office" aria-selected="true" aria-controls="office-view">像素办公室</button><button role="tab" id="mode-dashboard" data-mode="dashboard" aria-selected="false" aria-controls="dashboard-view">任务与记录</button><span>角色状态与项目执行同步</span></div>
+      <section id="question-panel" class="question-panel project-questions" hidden></section>
+      <section id="office-view" class="office-view" role="tabpanel" aria-labelledby="mode-office">
+        <div class="office-main">
+          <div class="office-scene-card">
+            <div class="office-scene-heading"><div><h2>项目办公室</h2><span id="office-progress">等待同步</span></div><span id="office-connection" class="office-connection" aria-live="polite">正在连接</span></div>
+            <div class="office-canvas-wrap"><canvas id="office-canvas" role="img" aria-label="项目的四个角色办公室。可点击角色，或使用下方角色按钮查看状态。"></canvas><p id="office-canvas-error" hidden></p></div>
+            <div class="office-scene-footer"><div class="office-legend"><span><i class="working"></i>工作中</span><span><i class="success"></i>本轮结束</span><span><i class="blocked"></i>需要处理</span></div><div class="office-camera"><button data-office-camera="out" aria-label="缩小办公室">−</button><button data-office-camera="fit" aria-label="显示完整办公室">全景</button><button data-office-camera="in" aria-label="放大办公室">＋</button><button data-office-camera="motion" id="office-motion" aria-pressed="false">减少动态</button></div></div>
+          </div>
+          <div id="office-roster" class="office-roster" role="group" aria-label="选择办公室角色"></div>
+          <section class="office-terminal"><div class="office-terminal-heading"><h2 id="office-output-title">角色输出</h2><button id="office-full-run" class="text-button" disabled>查看完整输入输出</button></div><pre id="office-output" tabindex="0" aria-label="所选角色的运行输出">选择一个角色查看运行记录。</pre></section>
+          <div class="office-attribution">角色与消息动画接入自 <a href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noreferrer">Munder Difflin</a><a href="/office-license.txt" target="_blank" rel="noreferrer">MIT 许可</a><span>画面基于真实运行记录，无模拟进度</span></div>
+        </div>
+        <aside class="office-controls">
+          <div class="office-person"><canvas id="office-portrait" width="36" height="56" aria-hidden="true"></canvas><div><h2 id="office-agent-name">开发员</h2><span id="office-agent-status" class="office-state idle">待命</span></div></div>
+          <p id="office-agent-description" class="office-agent-description"></p>
+          <div class="office-assignment"><span>当前状态</span><p id="office-agent-activity">等待任务分配</p><small id="office-agent-session"></small></div>
+          <section class="office-control-section"><h3>项目控制</h3><div class="office-control-buttons"><button class="primary" id="office-run-control" data-office-control="start">继续执行</button><button class="secondary" id="office-review-control" data-office-control="evaluate">立即评估</button></div><p id="office-control-hint" class="office-help">控制作用于当前项目，角色会随真实状态更新。</p></section>
+          <form id="office-steer-form" class="office-control-section"><label for="office-instruction">补充执行要求</label><textarea id="office-instruction" name="content" required maxlength="10000" rows="4" placeholder="例如：优先完成搜索功能，补充空结果与中文搜索测试。"></textarea><p class="office-help">保存当前进度，将补充要求交给 Agent，然后继续执行。</p><button type="submit" class="secondary full-width" id="office-send">发送指令并继续</button></form>
+          <section class="office-control-section"><h3>最近交接</h3><ol id="office-handoffs" class="office-handoffs"></ol></section>
+          <details class="office-instructions"><summary>已记录的补充指令 <span id="office-instruction-count">0</span></summary><div id="office-instruction-history"></div></details>
+        </aside>
+      </section>
+      <div class="project-body" id="dashboard-view" role="tabpanel" aria-labelledby="mode-dashboard" hidden>
         <div class="main-column">
           <section class="goal-section"><div class="section-heading"><h2>目标</h2><button class="text-button" data-action="toggle-goal">展开详情</button></div><p id="goal-text" class="goal-text clamped"></p><div id="pipeline" class="pipeline"></div></section>
-          <section id="question-panel" class="question-panel" hidden></section>
           <div id="summary" class="summary" aria-live="polite"></div>
           <div class="tab-bar" role="tablist" aria-label="项目内容"><button id="tab-tasks" role="tab" aria-selected="true" data-tab="tasks">执行任务 <span id="task-count"></span></button><button id="tab-activity" role="tab" aria-selected="false" data-tab="activity">输入与输出</button></div>
           <section id="tasks-view" role="tabpanel" aria-labelledby="tab-tasks"><div id="task-list"></div></section>

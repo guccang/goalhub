@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/chaitanyagiri/munder-difflin",
+  "commit": "91015c0e1316572fe1c771ae3ece162ae0bd92c6",
+  "source": "src/renderer/src/scene/office/portraitArt.ts",
+  "sourceSha256": "ddf170aafcff4edbabd05dc4fdc6936c756d8d71f62c1b9f22e257e22a3ed9cf",
+  "license": "MIT",
+  "modifications": [
+    "移除 TypeScript 类型",
+    "添加中文函数注释"
+  ],
+  "assets": "仅使用程序化生成角色，未包含 LimeZu 贴图、地图或字体"
+}

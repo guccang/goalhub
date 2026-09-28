@@ -1,0 +1,146 @@
+// 本文件连接像素办公室、真实角色日志与项目控制；所有写入都使用 GoalHub 的同源 API。
+import { OfficeScene } from './office-scene.js';
+import { paintPortrait } from './vendor/munder-difflin/portrait-art.js';
+
+const states = { idle: '待命', working: '工作中', success: '本轮结束', paused: '已暂停', blocked: '需要处理', error: '执行失败' };
+// escape 在角色卡片与消息记录中安全显示模型和用户文本。
+function escape(value) { return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
+// time 使用本地时间展示实际记录时间。
+function time(value) { return new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+
+export class OfficeView {
+  // constructor 初始化一次性的办公室组件与控制事件。
+  constructor({ onAction, onSteer, onError }) {
+    this.root = document.querySelector('#office-view'); this.selected = 'developer'; this.online = true; this.sending = false; this.drafts = new Map();
+    try { this.scene = new OfficeScene(this.find('#office-canvas'), (role) => this.select(role)); }
+    catch (error) { this.find('#office-canvas-error').hidden = false; this.find('#office-canvas-error').textContent = `画布暂不可用，可使用下方角色列表与控制面板：${error.message}`; }
+    this.find('#office-motion').setAttribute('aria-pressed', String(!this.scene?.motion));
+    this.root.addEventListener('click', async (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      if (button.dataset.officeRole) this.select(button.dataset.officeRole);
+      if (button.dataset.officeCamera) {
+        const camera = button.dataset.officeCamera;
+        if (camera === 'in') this.scene?.zoomBy(.25);
+        if (camera === 'out') this.scene?.zoomBy(-.25);
+        if (camera === 'fit') this.scene?.fit();
+        if (camera === 'motion') { this.scene?.setMotion(!this.scene.motion); button.setAttribute('aria-pressed', String(!this.scene?.motion)); }
+      }
+      if (button.dataset.officeControl && this.online && !this.controlBusy) {
+        this.controlBusy = true; this.renderControls();
+        try { await onAction(button.dataset.officeControl); }
+        catch (error) { onError(error.message); }
+        finally { this.controlBusy = false; this.renderControls(); }
+      }
+    });
+    this.find('#office-steer-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (this.sending || !this.online || !this.project) return;
+      const id = this.project.id, content = this.find('#office-instruction').value.trim();
+      if (!content) return;
+      this.sending = true; this.renderControls();
+      try {
+        await onSteer(id, content); this.drafts.delete(id);
+        if (this.project.id === id) this.find('#office-instruction').value = '';
+      } catch (error) { onError(error.message); }
+      finally { this.sending = false; this.renderControls(); }
+    });
+  }
+
+  // find 获取当前办公室中的一个元素。
+  find(selector) { return this.root.querySelector(selector); }
+
+  // setVisible 切换工作台时同步暂停或恢复场景动画。
+  setVisible(value) { this.scene?.setVisible(value); }
+
+  // disconnected 冻结动态并禁用写入，避免把旧快照显示成实时状态。
+  disconnected() {
+    this.online = false; if (this.scene) { this.scene.online = false; this.scene.messages = []; }
+    this.find('#office-connection').textContent = '连接中断 · 显示上次状态';
+    this.find('#office-connection').classList.add('offline'); this.renderControls();
+  }
+
+  // update 渲染服务器真实快照，并在项目切换时隔离草稿与选中角色。
+  update(project, busy = false) {
+    if (!project.office) return;
+    const reconnect = !this.online;
+    if (this.project?.id !== project.id) {
+      if (this.project) this.drafts.set(this.project.id, this.find('#office-instruction').value);
+      this.find('#office-instruction').value = this.drafts.get(project.id) || '';
+      this.selected = project.office.actors.find((actor) => actor.state === 'working')?.id || 'developer';
+      this.outputKey = null; this.rosterKey = null;
+    }
+    this.project = project; this.snapshot = project.office; this.busy = busy; this.online = true;
+    this.scene?.update(project.office, reconnect); this.scene?.select(this.selected);
+    this.find('#office-connection').textContent = `已同步 ${time(project.office.synchronizedAt)}`;
+    this.find('#office-connection').classList.remove('offline');
+    const progress = project.office.progress;
+    this.find('#office-progress').textContent = `任务 ${progress.done}/${progress.total} · 测试 ${progress.passed}/${progress.checks} 通过`;
+    this.renderRoster(); this.renderActor(); this.renderControls(); this.renderHistory();
+  }
+
+  // select 选择角色，画布与键盘角色列表使用同一选择状态。
+  select(role) {
+    if (!this.snapshot?.actors.some((actor) => actor.id === role)) return;
+    this.selected = role; this.outputKey = null;
+    this.scene?.select(role); this.renderRoster(); this.renderActor();
+  }
+
+  // renderRoster 在状态变化时更新可键盘操作的角色按钮。
+  renderRoster() {
+    const signature = JSON.stringify(this.snapshot.actors.map((actor) => [actor.id, actor.state, actor.character, this.selected === actor.id]));
+    if (signature === this.rosterKey) return;
+    this.rosterKey = signature;
+    const focused = document.activeElement?.dataset.officeRole;
+    this.find('#office-roster').innerHTML = this.snapshot.actors.map((actor) => `<button class="office-roster-item ${this.selected === actor.id ? 'selected' : ''}" data-office-role="${actor.id}" aria-pressed="${this.selected === actor.id}" aria-label="${escape(actor.name)}，${states[actor.state]}"><canvas width="36" height="56" data-portrait="${actor.id}" aria-hidden="true"></canvas><span><strong>${escape(actor.name)}</strong><small class="office-state ${actor.state}">${states[actor.state]}</small></span></button>`).join('');
+    for (const actor of this.snapshot.actors) paintPortrait(this.find(`[data-portrait="${actor.id}"]`).getContext('2d'), actor.character, 2);
+    if (focused) this.find(`[data-office-role="${focused}"]`)?.focus({ preventScroll: true });
+  }
+
+  // renderActor 显示选中角色的实际轮次、会话和输出，保留用户阅读位置。
+  renderActor() {
+    const actor = this.snapshot.actors.find((item) => item.id === this.selected);
+    if (!actor) return;
+    paintPortrait(this.find('#office-portrait').getContext('2d'), actor.character, 2);
+    this.find('#office-agent-name').textContent = actor.name;
+    const state = this.find('#office-agent-status'); state.textContent = states[actor.state]; state.className = `office-state ${actor.state}`;
+    this.find('#office-agent-description').textContent = actor.description;
+    this.find('#office-agent-activity').textContent = actor.activity;
+    this.find('#office-agent-session').textContent = actor.run ? `轮次 ${actor.run.id.slice(0, 8)}${actor.run.session_id ? ` · 会话 ${actor.run.session_id.slice(0, 12)}` : ''}` : '此角色尚未开始执行';
+    const button = this.find('#office-full-run'); button.disabled = !actor.run;
+    if (actor.run) button.dataset.run = actor.run.id; else delete button.dataset.run;
+    this.find('#office-output-title').textContent = `${actor.name} · ${actor.state === 'working' ? '实时输出' : '最近一轮输出'}`;
+    const key = `${actor.run?.id}:${actor.events.map((event) => event.id).join(',')}`;
+    if (this.outputKey !== key) {
+      const output = this.find('#office-output'), atBottom = output.scrollHeight - output.scrollTop - output.clientHeight < 35;
+      const changedRole = this.outputKey === null;
+      output.textContent = actor.events.length ? actor.events.map((event) => `${time(event.created_at)}  ${event.kind}\n${event.content}`).join('\n\n') : '该角色尚无输出。开始执行后，实际 Agent 与测试进程的输出会显示在这里。';
+      if (atBottom || changedRole) output.scrollTop = output.scrollHeight;
+      this.outputKey = key;
+    }
+  }
+
+  // renderControls 按项目状态和网络状态启用可执行操作。
+  renderControls() {
+    if (!this.project) return;
+    const project = this.project, pending = this.busy || this.controlBusy || this.sending || !this.online;
+    const run = this.find('#office-run-control'), review = this.find('#office-review-control');
+    run.dataset.officeControl = project.active ? 'pause' : 'start';
+    run.textContent = project.status === 'completed' ? '项目已完成' : project.active ? '暂停项目' : '继续执行';
+    run.disabled = pending || project.status === 'completed' || (!project.active && project.status === 'waiting_input');
+    review.disabled = pending || !project.active || project.status !== 'running' || this.snapshot.actors.some((actor) => actor.id === 'evaluator' && actor.state === 'working');
+    const locked = ['completed', 'waiting_input'].includes(project.status);
+    this.find('#office-instruction').disabled = pending || locked;
+    this.find('#office-send').disabled = pending || locked;
+    this.find('#office-send').textContent = this.sending ? '正在保存并重新调度…' : '发送指令并继续';
+    this.find('#office-control-hint').textContent = project.status === 'waiting_input' ? '请先在上方回答问题，提交后会自动继续。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : '控制作用于当前项目。减少动态只影响画面，不会暂停 Agent。';
+  }
+
+  // renderHistory 展示真实交接与已持久化的补充指令。
+  renderHistory() {
+    const messages = this.snapshot.messages.slice(-5).reverse();
+    this.find('#office-handoffs').innerHTML = messages.length ? messages.map((message) => `<li><span>${escape(message.label)}</span><time>${time(message.created_at)}</time></li>`).join('') : '<li class="office-help">尚无交接记录</li>';
+    this.find('#office-instruction-count').textContent = this.snapshot.instructions.length;
+    this.find('#office-instruction-history').innerHTML = this.snapshot.instructions.map((item) => `<p><time>${time(item.created_at)}</time>${escape(item.content)}</p>`).join('') || '<p>尚未发送补充指令。</p>';
+  }
+}

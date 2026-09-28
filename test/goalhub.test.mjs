@@ -10,6 +10,8 @@ import { Orchestrator } from '../lib/orchestrator.mjs';
 import { createApp } from '../lib/app.mjs';
 import { validatePlan } from '../lib/protocol.mjs';
 import { Runtime } from '../lib/runtime.mjs';
+import { buildOfficeSnapshot } from '../lib/office.mjs';
+import { sceneFrameBufs, SCENE_W, SCENE_H } from '../public/vendor/munder-difflin/portrait-art.js';
 
 const plan = { needsInput: false, summary: '实现可验证的本地文件功能', tasks: [{ title: '实现功能', description: '生成 answer.txt，内容应为 42。', checkIds: ['file'] }], checks: [{ id: 'file', title: '验证结果文件', command: 'verify-answer', expectation: 'answer.txt 内容为 42' }] };
 
@@ -221,4 +223,73 @@ test('公共运行模块按正确顺序构造 Codex 认证环境', async () => {
   });
   await runtime.host({ hostType: 'codex', cwd: tmpdir(), input: '测试输入' });
   assert.deepEqual(steps, ['auth', 'environment', 'run']);
+});
+
+// 办公室必须忠实展示数据库与调度器状态，同时保持长期运行后的角色记录可见。
+test('办公室映射并发角色、历史轮次和真实交接，不伪造运行', (t) => {
+  const f = fixture(t); f.store.plan(f.project.id, plan); f.store.update(f.project.id, { status: 'running' });
+  const planner = f.store.beginRun(f.project.id, 'planner', '规划输入'); f.store.finishRun(planner, 'completed', '规划完成');
+  for (let i = 0; i < 105; i++) { const run = f.store.beginRun(f.project.id, 'developer', `第 ${i} 轮`); f.store.finishRun(run, 'completed', '开发结果'); }
+  const developer = f.store.beginRun(f.project.id, 'developer', '正在开发');
+  f.store.event(f.project.id, 'agent.output', '编写真实源码', developer);
+  f.store.beginRun(f.project.id, 'evaluator', '正在评估'); f.store.event(f.project.id, 'plan.created', '真实任务交接');
+  const active = { controls: new Map([[f.project.id, {}]]) };
+  const snapshot = buildOfficeSnapshot(f.store, active, f.project.id);
+  assert.equal(snapshot.actors.find((actor) => actor.id === 'planner').run.id, planner);
+  assert.equal(snapshot.actors.filter((actor) => actor.state === 'working').length, 2);
+  assert.equal(snapshot.actors.find((actor) => actor.id === 'test').run, null);
+  assert.ok(snapshot.actors.find((actor) => actor.id === 'developer').recentOutput.includes('真实源码'));
+  assert.equal(snapshot.messages[0].from, 'planner'); assert.equal(snapshot.messages[0].to, 'developer');
+  assert.equal(snapshot.progress.total, 1);
+  const offline = buildOfficeSnapshot(f.store, { controls: new Map() }, f.project.id);
+  assert.equal(offline.actors.some((actor) => actor.state === 'working'), false);
+});
+
+// 补充要求必须先停止旧开发进程，再持久化并进入新轮次，不能只改变画面。
+test('办公室补充指令保存进度并恢复真实开发，要求进入后续上下文', async (t) => {
+  const f = fixture(t, { developer: ({ count }) => count === 1 ? 'hold' : undefined });
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => f.counts.developer === 1, '未启动开发');
+  await f.orchestrator.steer(f.project.id, '请先验证中文输入，再完成结果文件');
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '补充要求未执行完毕', 20000);
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.ok(f.stopped.includes('developer'));
+  assert.equal(f.store.instructions(f.project.id)[0].content, '请先验证中文输入，再完成结果文件');
+  assert.equal(f.store.tasks(f.project.id).length, 2);
+  assert.ok(f.calls.filter((call) => call.role === 'developer')[1].input.includes('请先验证中文输入'));
+  assert.equal(f.store.events(f.project.id, { kind: 'control.steer' }).length, 1);
+  await assert.rejects(f.orchestrator.steer(f.project.id, '新的要求'), /项目已完成/);
+});
+
+// 新接口与原控制接口共用状态机和来源校验，并暴露可本地加载的上游模块。
+test('办公室 HTTP 快照、补充指令与上游模块可访问，跨源写入被拒绝', async (t) => {
+  const f = fixture(t), server = createApp(f);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const base = `http://127.0.0.1:${server.address().port}`, endpoint = `${base}/api/projects/${f.project.id}`;
+  const initial = await (await fetch(`${endpoint}/office`)).json();
+  assert.equal(initial.actors.length, 4); assert.ok(initial.actors.every((actor) => actor.state === 'idle'));
+  const script = await fetch(`${base}/vendor/munder-difflin/portrait-art.js`);
+  assert.equal(script.status, 200); assert.match(script.headers.get('content-type'), /javascript/);
+  assert.ok((await script.text()).includes('sceneFrameBufs'));
+  assert.equal((await fetch(`${base}/office-license.txt`)).status, 200);
+  const forbidden = await fetch(`${endpoint}/steer`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://example.org' }, body: JSON.stringify({ content: '外部指令' }) });
+  assert.equal(forbidden.status, 403); assert.equal(f.store.instructions(f.project.id).length, 0);
+  const sent = await fetch(`${endpoint}/steer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '保持无需第三方依赖' }) });
+  assert.equal(sent.status, 200);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), 'HTTP 指令未执行完毕');
+  const complete = await (await fetch(endpoint)).json();
+  assert.equal(complete.status, 'completed'); assert.equal(complete.office.instructions[0].content, '保持无需第三方依赖');
+  assert.equal(complete.office.progress.passed, 1);
+});
+
+// 直接加载固定版本的上游程序化绘图，确认无需商业贴图或额外运行依赖。
+test('上游像素角色可生成非空的前后视图与行走帧', () => {
+  for (const name of ['michael', 'jim', 'dwight', 'pam']) {
+    const frames = sceneFrameBufs(name);
+    assert.equal(frames.front.length, 3); assert.equal(frames.back.length, 3);
+    assert.equal(frames.front[0].length, SCENE_W * SCENE_H * 4);
+    assert.ok(frames.front[0].some((value, index) => index % 4 === 3 && value === 255));
+    assert.notDeepEqual(frames.front[0], frames.front[1]);
+  }
 });
