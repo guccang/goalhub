@@ -128,7 +128,19 @@ export class SetupFlow {
     this.find('#save-host').disabled = this.pending || running || this.loading;
     this.find('#test-host').disabled = this.pending || running || this.loading;
     this.find('#host-test-status').textContent = this.state?.auth?.status === 'logging_in' ? '等待完成设备码授权，登录完成后可测试连通性。' : this.dirty ? '可直接点击「测试连通性」，自动保存当前配置并测试。' : running ? '正在真实调用模型，可关闭页面，稍后查看记录…' : latest?.status === 'passed' ? '连通性测试通过，可以输入目标。' : latest ? '测试未通过，请查看输出并修正配置后重试。' : '配置已保存，请测试连通性。';
-    this.find('#host-test-output').textContent = this.state?.tests?.map(test => `${test.created_at} · ${test.host_type} / ${test.model || '默认模型'} · ${test.status}\n输入：${test.input}\n输出：${test.output}`).join('\n\n') || '暂无测试记录';
+    // 测试记录不变时保留链接节点，避免轮询打断键盘焦点。
+    const historyKey = JSON.stringify(this.state?.tests || []);
+    if (this.historyKey !== historyKey) {
+      this.historyKey = historyKey;
+      const history = this.find('#host-test-output'); history.replaceChildren();
+      for (const test of this.state?.tests || []) {
+        const row = document.createElement('section'), output = document.createElement('pre'), link = document.createElement('a');
+        output.textContent = `${test.created_at} · ${test.host_type} / ${test.model || '默认模型'} · ${test.status}\n输出：${test.output}`;
+        link.href = '#prompt-preview'; link.className = 'prompt-link'; link.dataset.prompt = 'host-history'; link.dataset.testId = test.id; link.textContent = '预览提示词'; link.setAttribute('aria-haspopup', 'dialog');
+        row.append(link, output); history.append(row);
+      }
+      if (!this.state?.tests?.length) history.textContent = '暂无测试记录';
+    }
   }
   // save 保存设置并使旧配置的验证结果失效。
   async save() {

@@ -81,3 +81,8 @@
 .office-facilities { display:flex; flex-wrap:wrap; gap:8px; padding:12px 0; }
 .office-facilities button { flex:1; min-width:120px; padding:12px; border:1px solid #cbd5df; background:#f5f7fa; border-radius:6px; color:#263b53; }
 .office-facilities button[aria-pressed="true"] { border-color:#345fea; color:#244eaa; background:#edf2ff; }
+
+/* 控制按钮和对应预览链接上下排列，避免挤压侧栏。 */
+.office-control-action { flex:1; min-width:0; }
+.office-control-action button { width:100%; }
+.office-control-action .prompt-link { font-size:12px; }
