@@ -86,6 +86,64 @@ function fixture(t, behavior = {}) {
 }
 
 // 完成必须依赖真实断言、最终评估和合并成功，同时保留全部运行记录。
+test('同项目两次迭代保留首轮证据，重启后协调者及开发会话续接且读取已合并代码', async t => {
+  const f = fixture(t, {
+    // planner 验证第二个目标确实看到首轮代码，并模拟可去重的宿主统计。
+    planner({ options, count }) {
+      options.onTelemetry({ key: 'turn', source: 'codex', usage: { input: 100, output: 20, cached: 30 } });
+      options.onTelemetry({ key: 'turn', source: 'codex', usage: { input: 100, output: 20, cached: 30 } });
+      options.onTelemetry({ source: 'codex', context: { window: 1000, used: 250 } });
+      if (count === 2) {
+        assert.equal(options.sessionId, 'planner-session');
+        assert.equal(readFileSync(join(options.cwd, 'answer.txt'), 'utf8'), '42');
+        assert.match(options.input, /previousIterations/);
+      }
+    },
+  });
+  const id = f.project.id, first = f.project.active_goal_id;
+  f.orchestrator.start(id);
+  await waitUntil(() => !f.orchestrator.controls.has(id), '首轮未完成');
+  assert.equal(f.store.project(id).status, 'completed');
+  const firstTasks = f.store.tasks(id), firstGoal = f.store.goals(id)[0];
+  const reopened = new Store(join(f.directory, 'state.sqlite'));
+  reopened.recover();
+  assert.equal(reopened.latestSession(id, 'planner'), 'planner-session');
+  reopened.close();
+  f.store.createGoal(id, { goal: '保留原文件并进行第二轮验收', title: '第二轮' });
+  assert.equal(f.store.tasks(id).length, 0);
+  f.orchestrator.start(id);
+  await waitUntil(() => !f.orchestrator.controls.has(id), '第二轮未完成');
+  assert.equal(f.store.project(id).status, 'completed', f.store.project(id).summary);
+  assert.deepEqual(f.store.tasks(id, first), firstTasks);
+  assert.equal(f.store.detail(id, first).historical, true);
+  assert.equal(f.store.detail(id, first).goalUsage.total, 120);
+  assert.equal(f.store.usage(id).total, 240);
+  assert.equal(f.store.usage().total, 240);
+  assert.equal(f.store.sessions(id)[0].remainingPercent, 75);
+  assert.equal(f.store.goals(id)[1].base_commit, firstGoal.merge_commit);
+  assert.equal(f.calls.filter(call => call.role === 'developer')[1].sessionId, 'developer-session');
+  assert.ok(!existsSync(f.git.paths(id).work));
+  f.store.resetSessions(id);
+  assert.equal(f.store.latestSession(id, 'planner'), '');
+  assert.equal(f.store.usage(id).total, 240);
+});
+
+// 未完成目标不能被新迭代覆盖，主分支在验收之前保持原有代码。
+test('项目添加不调用模型，未完成目标不能覆盖，检查点不提前合并主分支', async t => {
+  const f = fixture(t);
+  assert.throws(() => f.store.createGoal(f.project.id, { goal: '覆盖' }), /先完成/);
+  const registered = f.store.create({ name: '独立项目' });
+  assert.equal(registered.status, 'ready');
+  assert.equal(f.store.goals(registered.id).length, 0);
+  assert.equal(f.calls.length, 0);
+  assert.throws(() => f.orchestrator.start(registered.id), /提出需求/);
+  const paths = await f.git.ensure(f.project);
+  writeFileSync(join(paths.work, 'not-verified.txt'), 'draft');
+  await f.git.checkpoint(f.project.id, 'save draft');
+  assert.equal(existsSync(join(paths.repo, 'not-verified.txt')), false);
+  assert.equal(existsSync(join(paths.work, 'not-verified.txt')), true);
+});
+
 test('目标完成后通过全部测试、合并 main 并移除开发 worktree', async (t) => {
   const f = fixture(t); f.orchestrator.start(f.project.id);
   await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '项目未结束');
@@ -180,6 +238,65 @@ test('最终评估发现遗漏时增加修复任务并重新验收', async (t) =
 });
 
 // HTTP 层拒绝跨源写入、错误参数和任意文件读取，并支持记录过滤。
+test('项目登记和目标 API 分离，计划可编辑且历史目标归属受校验', async t => {
+  const f = fixture(t), server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  // post 发送同源业务请求。
+  const post = (path, value) => fetch(base + '/api' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+  const registered = await (await post('/projects/register', { name: '长期项目', path: '' })).json();
+  assert.equal(registered.status, 'ready');
+  assert.equal(f.calls.length, 0);
+  await server.hostSetup.save({ hostType: 'codex', model: '' });
+  const probe = server.hostSetup.start(); await waitUntil(() => !server.hostSetup.job, '宿主未就绪');
+  assert.equal((await post(`/projects/${registered.id}/goals`, { title: '首轮', goal: '首轮需求', hostTestId: probe.id, autoStart: false })).status, 200);
+  const goalId = f.store.project(registered.id).active_goal_id;
+  f.store.plan(registered.id, plan); f.store.update(registered.id, { status: 'awaiting_approval' });
+  assert.equal((await post(`/projects/${registered.id}/plan`, { ...plan, summary: '修改后的总体计划' })).status, 200);
+  assert.equal(f.store.project(registered.id).summary, '修改后的总体计划');
+  assert.equal(f.store.project(registered.id).plan_approved, 0);
+  assert.equal((await post(`/projects/${registered.id}/goals`, { goal: '不能覆盖', hostTestId: probe.id })).status, 400);
+  assert.equal((await fetch(`${base}/api/projects/${f.project.id}/goals/${goalId}`)).status, 404);
+  assert.equal((await fetch(`${base}/api/usage`)).status, 200);
+  assert.equal(f.counts.developer, 0);
+});
+
+// 续接会话的累计计数只能按基线差值归属当前目标，重复事件不能重复消费。
+test('跨目标累计计数差分、未知值与项目隔离统计', t => {
+  const f = fixture(t), id = f.project.id;
+  const first = f.store.beginRun(id, 'planner', '首轮'); f.store.session(first, 'same-session');
+  const sample = { key: 'codex-turn', source: 'codex', cumulative: true, usage: { input: 100, output: 20, cached: 30 } };
+  f.store.telemetry(first, sample); f.store.finishRun(first, 'completed', '首轮');
+  f.store.update(id, { status: 'completed' });
+  f.store.createGoal(id, { goal: '第二轮' });
+  const second = f.store.beginRun(id, 'planner', '第二轮'); f.store.session(second, 'same-session');
+  const next = { ...sample, resumed: true, usage: { input: 240, output: 50, cached: 70 } };
+  f.store.telemetry(second, next); f.store.telemetry(second, next);
+  assert.equal(f.store.usage(id).total, 290);
+  assert.equal(f.store.usage(id, f.store.project(id).active_goal_id).total, 170);
+  const other = f.store.create({ name: '其他项目', goal: '其他目标', settings: f.project.settings });
+  const unknown = f.store.beginRun(other.id, 'planner', '旧会话'); f.store.session(unknown, 'legacy-session');
+  f.store.telemetry(unknown, { ...sample, resumed: true });
+  assert.equal(f.store.usage(other.id).total, null);
+  assert.equal(f.store.usage(other.id).known_runs, 0);
+  assert.equal(f.store.usage().total, 290);
+});
+
+// 旧数据补录首个目标，重复迁移不重复生成目标或丢失任务、问答、执行记录。
+test('旧项目迁移生成唯一首个目标并保留全部关联记录', t => {
+  const f = fixture(t), legacy = f.store.create({ name: '旧项目' });
+  f.store.db.prepare("UPDATE projects SET goal='旧需求',status='paused' WHERE id=?").run(legacy.id);
+  const run = f.store.beginRun(legacy.id, 'planner', '旧输入');
+  f.store.ask(legacy.id, ['旧问题']);
+  f.store.migrateProjects();
+  const goal = f.store.project(legacy.id).active_goal_id;
+  assert.ok(goal); assert.equal(f.store.run(run).goal_id, goal);
+  assert.equal(f.store.questions(legacy.id)[0].prompt, '旧问题');
+  f.store.migrateProjects();
+  assert.equal(f.store.goals(legacy.id).length, 1);
+});
+
 test('HTTP 接口可创建查询项目并拒绝跨源和无效输入', async (t) => {
   const f = fixture(t), server = createApp(f);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

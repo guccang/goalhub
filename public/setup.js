@@ -29,7 +29,9 @@ export class SetupFlow {
   // error 将错误显示在当前对话框中。
   error(error) { this.find('#host-error').textContent = error.message; }
   // open 新目标直接填写目标，复用全局验证结果，不重复保存或要求重复测试。
-  async open() {
+  async open(project) {
+    this.projectId = project.id;
+    this.find('#goal-project-label').textContent = `${project.name}：沿用项目仓库与协调者会话，描述本次需求。`;
     this.find('#create-dialog').showModal(); this.find('#create-error').textContent = '';
     try { this.state = await this.api('/host'); this.dirty = !this.state.revision; this.paint(); }
     catch (error) { this.find('#create-error').textContent = error.message; }
@@ -142,7 +144,7 @@ export class SetupFlow {
       if (!this.passed()) throw new Error('请先在全局宿主设置中通过连通性测试');
       const values = Object.fromEntries(new FormData(form));
       const hostTestId = this.state.tests.find(test => test.revision === this.state.revision).id;
-      const created = await this.api('/projects', { name: values.name, goal: values.goal, hostTestId, settings: { confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
+      const created = await this.api(`/projects/${this.projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, settings: { confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
       this.find('#create-dialog').close(); form.reset(); await this.selectProject(created.id); await this.refresh(); this.toast('正在生成拆解预览');
     } catch (error) { this.find('#create-error').textContent = error.message; }
     finally { this.creating = false; this.paint(); }

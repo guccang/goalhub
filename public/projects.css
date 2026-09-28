@@ -1,0 +1,25 @@
+/* 本文件沿用旗黑、深蓝与青绿，用清晰的项目迭代条和统计表区分计划、容量与消耗。 */
+.iteration-panel,.usage-panel { margin:20px 32px; padding:18px 22px; border:1px solid var(--line); background:white; border-radius:6px; }
+.iteration-toolbar { display:flex; align-items:end; gap:16px; flex-wrap:wrap; }
+.iteration-toolbar label { flex:1; min-width:220px; margin:0; }
+.iteration-toolbar select { margin:6px 0 0; width:100%; }
+.iteration-panel p { margin:10px 0 0; color:var(--muted); }
+#project-repository { display:block; overflow-wrap:anywhere; margin-top:10px; }
+.usage-panel summary { cursor:pointer; font-weight:600; }
+.usage-panel small,.usage-table small,.session-row small { display:block; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.session-row { display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:20px; padding:16px 0; border-bottom:1px solid var(--line); }
+.session-row meter { display:block; width:100%; height:12px; accent-color:var(--green); }
+.table-scroll { overflow-x:auto; }
+.usage-table { width:100%; border-collapse:collapse; margin:16px 0; font-size:13px; }
+.usage-table th,.usage-table td { text-align:left; padding:12px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+.usage-table th { white-space:nowrap; }.usage-table thead { background:#f7f9fc; }
+.global-entry { margin:0 20px 12px; font-size:12px; }
+#global-dialog { width:min(1050px,calc(100vw - 28px)); }
+#edit-plan-fields fieldset { margin:18px 0; border:1px solid var(--line); padding:16px; }
+.badge.ready { background:#e3f5ee; color:var(--green); }
+.task-meta span { overflow-wrap:anywhere; }
+@media(max-width:700px) { .iteration-panel,.usage-panel { margin:16px 13px; padding:14px; }.session-row { grid-template-columns:1fr; gap:6px; }.iteration-toolbar { align-items:stretch; }.usage-table th,.usage-table td { padding:8px; } }
+
+/* 任务按实际状态分栏，小屏自动换行。 */
+.task-board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }.task-column { min-width:0; padding:12px; background:#f7f9fc; }.task-column>h3 { margin:0 0 12px; font-size:14px; }.task-column .task-item { background:white; padding:14px; }.task-column .task-heading { flex-wrap:wrap; }
+@media(max-width:700px) { .task-board { grid-template-columns:1fr; } }

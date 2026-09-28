@@ -1,11 +1,13 @@
 // 本文件驱动目标工作台，定期读取 SQLite 状态并提供创建、问答、暂停和日志查询交互。
+import { ProjectsPanel } from './projects.js';
 import { SetupFlow } from './setup.js';
 import { OfficeView } from './office-view.js';
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
-const labels = { awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
+const labels = { ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
 const roles = { planner: '目标规划', developer: '开发执行', evaluator: '定时评估', 'final-review': '最终评估', test: '测试验收' };
 const hostLabels = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
+let selectedGoal = '';
 let selected = localStorage.getItem('goalhub.project') || '', project = null, projects = [], tab = 'tasks', busy = false, refreshInFlight = false;
 let events = [], search = '', kind = '', questionsKey = '', toastTimer, eventProject = '', historyMode = false;
 const markupCache = new WeakMap();
@@ -16,12 +18,16 @@ const office = new OfficeView({ onAction: action, onError: toast,
 });
 
 const setup = new SetupFlow({ api, selectProject, refresh, toast });
+const panels = new ProjectsPanel({ api, selectProject, selectGoal, refresh, toast });
+
+// selectGoal 只切换查看目标，不改变项目当前执行目标。
+async function selectGoal(id) { selectedGoal = id; historyMode = false; eventProject = ''; questionsKey = ''; setMode('dashboard'); await refresh(); }
 
 // setMode 在办公室和任务记录之间切换，不改变项目的执行状态。
 function setMode(value) {
-  mode = value; localStorage.setItem('goalhub.view', mode);
+  mode = project?.historical ? 'dashboard' : value; localStorage.setItem('goalhub.view', mode);
   for (const name of ['office', 'dashboard']) { $(`#${name}-view`).hidden = mode !== name; $(`#mode-${name}`).setAttribute('aria-selected', String(mode === name)); }
-  office.setVisible(!!project && mode === 'office');
+  office.setVisible(!!project && !project.historical && mode === 'office');
 }
 
 // html 仅在内容变化时替换节点，保留轮询期间的键盘焦点与详情展开状态。
@@ -57,12 +63,12 @@ function toast(message) {
 // navigation 展示真实项目及任务完成进度。
 function navigation() {
   $('#project-count').textContent = projects.length;
-  html('#project-list', projects.length ? projects.map((item) => `<button class="project-link ${item.id === selected ? 'selected' : ''}" data-project="${item.id}" ${item.id === selected ? 'aria-current="page"' : ''}><strong>${escape(item.name)}</strong><small><i class="status-dot ${item.status}"></i>${labels[item.status]}${item.task_count ? `　${item.done_count}/${item.task_count}` : ''}</small></button>`).join('') : '<p class="sidebar-empty">创建一个目标，开始执行。</p>');
+  html('#project-list', projects.length ? projects.map((item) => `<button class="project-link ${item.id === selected ? 'selected' : ''}" data-project="${item.id}" ${item.id === selected ? 'aria-current="page"' : ''}><strong>${escape(item.name)}</strong><small><i class="status-dot ${item.status}"></i>${labels[item.status]}${item.task_count ? `　${item.done_count}/${item.task_count}` : ''}</small></button>`).join('') : '<p class="sidebar-empty">添加项目，在项目中提出需求。</p>');
 }
 
 // renderQuestions 仅在问题变化时重绘表单，轮询不会丢失正在输入的回答。
 function renderQuestions() {
-  const pending = project.questions.filter((item) => item.answer === null), key = `${project.id}:${pending.map((item) => item.id).join(',')}`;
+  const pending = project.historical ? [] : project.questions.filter((item) => item.answer === null), key = `${project.id}:${pending.map((item) => item.id).join(',')}`;
   if (questionsKey === key) return;
   questionsKey = key;
   $('#question-panel').hidden = !pending.length;
@@ -73,33 +79,36 @@ function renderQuestions() {
 function renderProject() {
   $('#empty').hidden = !!project; $('#project').hidden = !project;
   if (!project) { office.setVisible(false); return; }
-  office.update(project, busy); office.setVisible(mode === 'office');
+  panels.render(project);
+  office.update(project, busy || !!project.historical || !project.active_goal_id); office.setVisible(mode === 'office' && !project.historical);
+  $('#office-view').hidden = mode !== 'office' || !!project.historical;
   $('#project-title').textContent = project.name; document.title = `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
-  html('#project-actions', project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? '' : '<button class="primary" data-action="start">继续执行</button>');
+  html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? '' : '<button class="primary" data-action="start">继续执行</button>');
   $('#project-actions').querySelectorAll('button').forEach((button) => { button.disabled = busy; });
   $('#goal-text').textContent = project.goal;
   const stage = project.status === 'completed' ? 4 : project.status === 'awaiting_approval' ? 2 : project.resume_phase === 'execute' ? 3 : 1;
-  $('#pipeline').innerHTML = ['宿主配置与测试', '目标拆解预览', '计划确认', '开始实现'].map((name, index) => `<div class="pipeline-step ${index < stage ? 'finished' : index === stage ? 'active' : ''}">${name}</div>`).join('');
+  $('#pipeline').innerHTML = ['理解需求', '计划与任务', '确认计划', '实施与验收'].map((name, index) => `<div class="pipeline-step ${index < stage ? 'finished' : index === stage ? 'active' : ''}">${name}</div>`).join('');
   $('#summary').textContent = project.summary || (project.status === 'planning' ? '规划 Agent 正在分析目标、拆解任务与制定测试项目。' : '目标已保存，等待开始执行。');
   $('#summary').classList.toggle('warning', ['blocked', 'waiting_input'].includes(project.status));
   renderQuestions();
   renderPlanPreview();
   $('#task-count').textContent = project.tasks.length ? `${project.tasks.filter((task) => task.status === 'done').length}/${project.tasks.length}` : '';
   const openedTasks = new Set([...document.querySelectorAll('#task-list details[open]')].map((item) => item.dataset.task));
-  $('#task-list').innerHTML = project.tasks.length ? project.tasks.map((task, index) => `<article class="task-item"><span class="task-marker ${task.status}">${task.status === 'done' ? '✓' : task.status === 'running' ? '›' : index + 1}</span><div class="task-content"><div class="task-heading"><h3>${escape(task.title)}</h3>${badge(task.status)}</div><p>${escape(task.description)}</p><div class="task-meta"><span>${task.check_ids.length} 项验收</span>${task.attempts ? `<span>已执行 ${task.attempts} 轮</span>` : ''}</div>${task.result ? `<details data-task="${task.id}" ${openedTasks.has(task.id) ? 'open' : ''}><summary>最近执行结果</summary><p>${escape(task.result)}</p></details>` : ''}</div></article>`).join('') : '<div class="empty-section">规划完成后，这里会展示按顺序执行的小任务。<br>每个任务都会关联可执行的测试项目。</div>';
+  const taskCards = project.tasks.map((task, index) => `<article class="task-item"><span class="task-marker ${task.status}">${task.status === 'done' ? '✓' : task.status === 'running' ? '›' : index + 1}</span><div class="task-content"><div class="task-heading"><h3>${escape(task.title)}</h3>${badge(task.status)}</div><p>${escape(task.description)}</p><div class="task-meta"><span>负责人：${escape(task.assignee || 'developer')}</span><span>${task.depends_on?.length || 0} 项前置任务</span><span>${task.check_ids.length} 项验收</span>${task.attempts ? `<span>已执行 ${task.attempts} 轮</span>` : ''}</div>${task.result ? `<details data-task="${task.id}" ${openedTasks.has(task.id) ? 'open' : ''}><summary>最近执行结果</summary><p>${escape(task.result)}</p></details>` : ''}</div></article>`);
+  $('#task-list').innerHTML = project.tasks.length ? `<div class="task-board">${[['pending','待办'],['running','进行中'],['blocked','阻塞'],['done','完成']].map(([status,title]) => `<section class="task-column"><h3>${title}</h3>${project.tasks.map((task,i) => (['pending','running','done'].includes(task.status) ? task.status : 'blocked') === status ? taskCards[i] : '').join('') || '<p class="muted">暂无任务</p>'}</section>`).join('')}</div>` : '<div class="empty-section">规划完成后，这里会展示按顺序执行的小任务。<br>每个任务都会关联可执行的测试项目。</div>';
   renderInspector(); renderRuns();
 }
 
 // renderPlanPreview 展示真实任务与测试命令，人工确认入口在两种视图中均可见。
 function renderPlanPreview() {
-  const waiting = project.status === 'awaiting_approval';
+  const waiting = project.status === 'awaiting_approval' && !project.historical;
   const visible = waiting || project.status === 'planning' || (project.settings.confirmationMode && project.tasks.length);
   $('#plan-preview').hidden = !visible;
   if (!visible) return;
   const tasks = project.tasks.map((task, index) => `<li><strong>${index + 1}. ${escape(task.title)}</strong><p>${escape(task.description)}</p><small>验收：${task.check_ids.map(id => escape(project.checks.find(check => check.id === id)?.title || id)).join('、')}</small></li>`).join('');
   const checks = project.checks.map(check => `<li><strong>${escape(check.title)}</strong><p>${escape(check.expectation)}</p><code>${escape(check.command)}</code></li>`).join('');
-  html('#plan-preview', `<div class="plan-heading"><div><small>2 目标拆解预览 → 3 计划确认 → 4 开始实现</small><h2>${waiting ? '计划已就绪，等待你确认' : project.status === 'planning' ? '正在拆解目标' : '已确认的实施计划'}</h2></div>${waiting ? `<button class="primary" data-action="approve" ${project.active || busy ? 'disabled' : ''}>确认计划并开始实现</button>` : ''}</div><p>${escape(project.summary)}</p>${tasks ? `<details ${waiting ? 'open' : ''}><summary>${project.tasks.length} 个任务 · ${project.checks.length} 项测试 · ${project.settings.confirmationMode === 'auto' ? '自动确认' : '人工确认'}</summary><div class="plan-columns"><div><h3>执行任务</h3><ol>${tasks}</ol></div><div><h3>验收项目</h3><ol>${checks}</ol></div></div></details>` : '<p>规划 Agent 会分析目标并制定可执行的测试；需要信息时将在下方提问。</p>'}`);
+  html('#plan-preview', `<div class="plan-heading"><div><small>总体计划与任务拆解</small><h2>${waiting ? '计划已就绪，等待你确认' : project.status === 'planning' ? '正在拆解目标' : '已确认的实施计划'}</h2></div>${waiting ? `<button class="secondary" data-action="edit-plan">调整计划</button><button class="primary" data-action="approve" ${project.active || busy ? 'disabled' : ''}>确认计划并开始实现</button>` : ''}</div><p>${escape(project.summary)}</p>${tasks ? `<details ${waiting ? 'open' : ''}><summary>${project.tasks.length} 个任务 · ${project.checks.length} 项测试 · ${project.settings.confirmationMode === 'auto' ? '自动确认' : '人工确认'}</summary><div class="plan-columns"><div><h3>执行任务</h3><ol>${tasks}</ol></div><div><h3>验收项目</h3><ol>${checks}</ol></div></div></details>` : '<p>规划 Agent 会分析目标并制定可执行的测试；需要信息时将在下方提问。</p>'}`);
 }
 
 // renderInspector 展示评估、实际测试结果和 Git 版本证据。
@@ -135,10 +144,11 @@ function renderEvents() {
 // loadEvents 按项目、搜索条件和游标读取 SQLite 步骤记录。
 async function loadEvents(older = false) {
   if (!selected) return;
-  const id = selected, query = new URLSearchParams({ search, kind, limit: '100' });
+  const id = selected, goal = selectedGoal, query = new URLSearchParams({ search, kind, limit: '100' });
+  if (selectedGoal) query.set('goal', selectedGoal);
   if (older && events.length) query.set('before', events[0].id);
   const rows = await api(`/projects/${id}/events?${query}`);
-  if (id !== selected) return;
+  if (id !== selected || goal !== selectedGoal) return;
   events = older ? [...rows, ...events] : rows; eventProject = id;
   if (older) { historyMode = true; if (!rows.length) toast('已经是最早的记录'); }
   renderEvents();
@@ -149,7 +159,8 @@ async function refresh() {
   if (refreshInFlight) return;
   refreshInFlight = true;
   try {
-    const [list, status] = await Promise.all([api('/projects'), api('/status')]);
+    const [list, status, usage] = await Promise.all([api('/projects'), api('/status'), api('/usage')]);
+    panels.global(usage);
     projects = list;
     $('#connection').textContent = status.runtime.available ? '本机服务已连接' : '请配置运行模块';
     $('#connection-dot').className = `connection-dot ${status.runtime.available ? 'connected' : 'error'}`;
@@ -157,8 +168,8 @@ async function refresh() {
     if (!projects.some((item) => item.id === selected)) selected = projects[0]?.id || '';
     navigation();
     if (selected) {
-      const id = selected, detail = await api(`/projects/${id}`);
-      if (id !== selected) return;
+      const id = selected, goal = selectedGoal, detail = await api(selectedGoal ? `/projects/${id}/goals/${selectedGoal}` : `/projects/${id}`);
+      if (id !== selected || goal !== selectedGoal) return;
       project = detail; renderProject();
       if (tab === 'activity' && (!historyMode || eventProject !== selected)) await loadEvents();
     } else { project = null; renderProject(); }
@@ -168,7 +179,7 @@ async function refresh() {
 
 // selectProject 清理上一个项目的筛选和表单状态。
 async function selectProject(id) {
-  selected = id; localStorage.setItem('goalhub.project', id); questionsKey = ''; historyMode = false; events = []; search = ''; kind = '';
+  selectedGoal = ''; selected = id; localStorage.setItem('goalhub.project', id); questionsKey = ''; historyMode = false; events = []; search = ''; kind = '';
   $('#log-search').reset();
   const detail = await api(`/projects/${id}`);
   if (id !== selected) return;
@@ -178,14 +189,21 @@ async function selectProject(id) {
 
 // action 执行用户主动触发的项目操作。
 async function action(name) {
-  if (name === 'new') { await setup.open(); return; }
+  if (name === 'new') { panels.open(); return; }
+  if (name === 'new-goal') { await setup.open(project); return; }
+  if (name === 'edit-plan') { panels.edit(); return; }
+  if (name === 'global-usage') { $('#global-dialog').showModal(); return; }
+  if (name === 'close-register') { $('#register-dialog').close(); return; }
+  if (name === 'close-global') { $('#global-dialog').close(); return; }
+  if (name === 'close-edit-plan') { $('#edit-plan-dialog').close(); return; }
+  if (name === 'reset-session') { await api(`/projects/${selected}/sessions-reset`, {}); await refresh(); toast('下次调用将使用新会话，历史记录已保留'); return; }
   if (name === 'host-setup') { await setup.openHost(); return; }
   if (name === 'close-host') { setup.closeHost(); return; }
   if (name === 'close-create') { $('#create-dialog').close(); return; }
   if (name === 'close-run') { $('#run-dialog').close(); return; }
   if (name === 'toggle-goal') { const clamped = $('#goal-text').classList.toggle('clamped'); $('[data-action="toggle-goal"]').textContent = clamped ? '展开详情' : '收起详情'; return; }
   if (name === 'older') { await loadEvents(true); return; }
-  if (!selected || busy) return;
+  if (!selected || busy || project?.historical) return;
   busy = true;
   try {
     const id = selected;

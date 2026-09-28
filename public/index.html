@@ -11,15 +11,17 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/office.css">
   <link rel="stylesheet" href="/setup.css">
+  <link rel="stylesheet" href="/projects.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
   <aside class="sidebar">
     <a class="brand" href="/" aria-label="GoalHub 首页"><span class="brand-mark">g<span></span></span><span>GoalHub<small>目标执行工作台</small></span></a>
-    <button class="primary new-button" data-action="new"><span aria-hidden="true">＋</span> 新建目标</button>
+    <button class="primary new-button" data-action="new"><span aria-hidden="true">＋</span> 添加项目</button>
     <div class="nav-label">我的项目 <span id="project-count">0</span></div>
     <nav id="project-list" aria-label="项目列表"></nav>
     <button class="secondary host-entry" data-action="host-setup">宿主配置与测试</button>
+    <button class="text-button global-entry" data-action="global-usage" id="global-total">整体用量：未知</button>
     <div class="sidebar-bottom"><span class="connection-dot" id="connection-dot"></span><span id="connection">连接中</span><small>源码与执行记录保存在本机</small></div>
   </aside>
   <main id="workspace">
@@ -28,11 +30,13 @@
       <p class="intro-note">从想法，到经过验证的结果</p>
       <h1>写下目标，<br>让执行持续向前。</h1>
       <p class="intro-copy">将目标拆成可执行的任务。Agent 持续开发，定时检查进度，并用实际测试确认完成。</p>
-      <button class="primary" data-action="new">创建第一个目标</button>
+      <button class="primary" data-action="new">添加第一个项目</button>
       <div class="empty-process"><span>明确目标</span><b>›</b><span>拆解与开发</span><b>›</b><span>评估与修复</span><b>›</b><span>测试验收</span></div>
     </div>
     <section id="project" hidden>
       <header class="project-header"><div><div class="breadcrumb">我的项目 <span>/</span> 执行工作台</div><h1 id="project-title"></h1><div class="header-meta"><span id="project-status"></span><span id="project-created"></span></div></div><div class="header-actions" id="project-actions"></div></header>
+      <section class="iteration-panel"><div class="iteration-toolbar"><label for="iteration-select">目标与迭代<select id="iteration-select"></select></label><button class="primary" data-action="new-goal" id="new-goal">提出需求</button></div><p id="iteration-note"></p><small id="project-repository"></small></section>
+      <details class="usage-panel"><summary id="usage-summary">项目上下文与用量</summary><p class="subtle">上下文容量按会话显示；累计用量按目标、项目汇总。未知表示宿主未上报，缓存读取已包含在输入中。</p><div id="session-metrics"></div><div class="table-scroll" id="project-usage"></div><details><summary>按日期、目标、角色和模型查看明细</summary><div class="table-scroll" id="project-usage-details"></div></details><button class="text-button" data-action="reset-session" id="reset-session">下次使用新会话（保留项目历史）</button></details>
       <div class="workspace-mode" role="tablist" aria-label="工作区视图"><button role="tab" id="mode-office" data-mode="office" aria-selected="true" aria-controls="office-view">像素办公室</button><button role="tab" id="mode-dashboard" data-mode="dashboard" aria-selected="false" aria-controls="dashboard-view">任务与记录</button><span>角色状态与项目执行同步</span></div>
       <section id="plan-preview" class="plan-preview" hidden></section>
       <section id="question-panel" class="question-panel project-questions" hidden></section>
@@ -110,20 +114,23 @@
     <p id="host-error" class="form-error" role="alert"></p>
   </dialog>
   <dialog id="create-dialog" class="create-dialog setup-dialog">
-    <div class="dialog-header"><div><h2>创建目标</h2><p>复用已验证的全局宿主，输入目标后生成任务与验收计划。</p></div><button type="button" class="icon-button" data-action="close-create" aria-label="关闭">×</button></div>
-    <ol class="setup-steps"><li>1 全局宿主</li><li class="active">2 目标拆解预览</li><li>3 自动 / 人工确认</li><li>4 开始实现</li></ol>
+    <div class="dialog-header"><div><h2>提出需求</h2><p id="goal-project-label">在当前项目中继续迭代，协调者会阅读已有代码和历史上下文。</p></div><button type="button" class="icon-button" data-action="close-create" aria-label="关闭">×</button></div>
+
     <section id="setup-goal">
       <form id="create-form">
         <p id="selected-host" class="setup-note"></p>
-        <label>项目名称<input name="name" required maxlength="100" placeholder="例如：团队知识库" autocomplete="off"></label>
+        <label>目标标题（可选）<input name="name" maxlength="100" placeholder="例如：增加中文搜索" autocomplete="off"></label>
         <label>目标与完成条件<textarea name="goal" required maxlength="30000" rows="5" placeholder="描述功能、约束和完成标准，规划 Agent 将生成任务与验收项目。"></textarea></label>
         <label>计划确认方式<select name="confirmationMode"><option value="manual">人工确认：预览计划，确认后开始实现</option><option value="auto">自动确认：生成计划后自动开始实现</option></select></label>
         <details class="advanced"><summary>评估间隔与执行时限</summary><label>评估间隔（分钟）<input name="evaluationMinutes" type="number" min="0.1" max="1440" step="0.1" value="5" required></label><div class="form-grid"><label>单轮 Agent 时限（分钟）<input name="agentTimeoutMinutes" type="number" min="1" max="240" value="30" required></label><label>单项测试时限（秒）<input name="testTimeoutSeconds" type="number" min="5" max="3600" value="120" required></label></div></details>
-        <div class="create-note">先生成拆解预览。缺少必要信息时会提问；人工确认前不会启动开发。源码使用独立 Git 仓库，步骤记录保存在 SQLite。</div>
+        <div class="create-note">先生成拆解预览。缺少必要信息时会提问；人工确认前不会启动开发。本次目标沿用项目仓库与协调者会话，历史目标保留。</div>
         <div id="create-error" class="form-error" role="alert"></div><div class="dialog-footer"><button type="button" class="secondary" id="back-host">管理全局宿主</button><button type="submit" class="primary">生成拆解预览</button></div>
       </form>
     </section>
   </dialog>
+  <dialog id="register-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><div><h2>添加项目</h2><p>项目只添加一次，后续需求在项目中持续迭代。</p></div><button class="icon-button" data-action="close-register" aria-label="关闭">×</button></div><form id="register-form"><label>项目名称<input name="name" required maxlength="100" placeholder="例如：CodingHub"></label><label>项目来源<select name="mode"><option value="existing">接入已有 Git 仓库</option><option value="new">创建新项目（空目录）</option></select></label><label>本地目录<input name="path" maxlength="2000" placeholder="例如：E:\githubdesktop\codinghub"></label><p class="subtle">留空使用 GoalHub 受管目录。添加项目不会调用模型或启动开发。</p><p class="form-error" id="register-error"></p><button class="primary" type="submit">添加项目</button></form></dialog>
+  <dialog id="global-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><h2>全部项目用量</h2><button class="icon-button" data-action="close-global" aria-label="关闭">×</button></div><p>仅累计宿主实际上报的用量，未上报轮次不记为零；日期使用 UTC。此处不汇总各会话的上下文百分比。</p><div id="global-usage" class="table-scroll"></div></dialog>
+  <dialog id="edit-plan-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><h2>调整实施计划</h2><button class="icon-button" data-action="close-edit-plan" aria-label="关闭">×</button></div><form id="edit-plan-form"><div id="edit-plan-fields"></div><p class="form-error" id="edit-plan-error"></p><button class="primary" type="submit">保存计划，继续等待确认</button></form></dialog>
   <dialog id="run-dialog" class="run-dialog"><div class="dialog-header"><div><h2 id="run-title">执行记录</h2><p id="run-meta"></p></div><button class="icon-button" data-action="close-run" aria-label="关闭">×</button></div><h3>输入</h3><pre id="run-input"></pre><h3>输出</h3><pre id="run-output"></pre></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 </body>
