@@ -12,6 +12,7 @@ export class SetupFlow {
       if (!card || card.disabled || card.dataset.host === this.form.elements.hostType.value) return;
       this.form.elements.hostType.value = card.dataset.host;
       this.form.elements.model.value = this.state?.hosts?.find(host => host.hostType === card.dataset.host)?.model || '';
+      this.form.elements.reasoningEffort.value = this.state?.hosts?.find(host => host.hostType === card.dataset.host)?.reasoningEffort || '';
       this.dirty = true; this.find('#host-error').textContent = '';
       this.credentials().catch(error => this.error(error));
     });
@@ -45,7 +46,7 @@ export class SetupFlow {
     this.returnToGoal = returnToGoal;
     this.find('#create-dialog').close(); this.find('#host-dialog').showModal(); this.find('#host-error').textContent = '';
     this.state = await this.api('/host');
-    this.form.elements.hostType.value = this.state.hostType; this.form.elements.model.value = this.state.model;
+    this.form.elements.hostType.value = this.state.hostType; this.form.elements.model.value = this.state.model; this.form.elements.reasoningEffort.value = this.state.reasoningEffort || '';
     await this.credentials(); this.dirty = !this.state.revision; this.paint();
   }
   // closeHost 返回原目标草稿，侧栏入口则仅关闭全局设置。
@@ -89,6 +90,7 @@ export class SetupFlow {
       card.title = host?.testedAt ? `最近测试：${new Date(host.testedAt).toLocaleString()}` : '尚未进行真实连通性测试';
       if (card.dataset.host === type) this.find('#host-config-title').textContent = card.querySelector('strong').textContent + ' 配置';
     });
+    this.find('#codex-effort').hidden = type !== 'codex';
     this.find('#codex-auth-mode').hidden = type !== 'codex';
     this.find('#codex-device').hidden = type !== 'codex' || mode !== 'device';
     this.find('#host-credentials').hidden = type === 'codex' && mode !== 'api';
@@ -116,6 +118,7 @@ export class SetupFlow {
   // save 保存设置并使旧配置的验证结果失效。
   async save() {
     const value = Object.fromEntries(new FormData(this.form)); value.clearApiKey = this.form.elements.clearApiKey.checked;
+    if (value.hostType !== 'codex') value.reasoningEffort = '';
     this.pending = true; this.paint(); this.find('#host-error').textContent = '';
     try { this.state = await this.api('/host', value); this.form.elements.apiKey.value = ''; this.form.elements.clearApiKey.checked = false; this.find('#host-key-state').textContent = this.state.credentials.hasApiKey ? '已保存密钥，留空可保留。' : '未保存 API 密钥。'; this.dirty = false; this.modelPicker.load(); }
     finally { this.pending = false; this.paint(); }

@@ -721,3 +721,14 @@ test('旧职责迁移和重启保留项目员工与历史证据', t => {
     assert.equal(again.project(f.project.id).settings.context, '持续维护项目架构');
   } finally { again.close(); }
 });
+
+// 默认团队继承项目创建时的宿主强度，员工保存的独立设置优先。
+test('项目默认员工继承 Codex 全局强度且允许独立覆盖', t => {
+  const f = fixture(t);
+  const project = f.store.create({ name: '继承宿主强度', settings: { ...f.project.settings, employees: undefined, reasoningEffort: 'high' } });
+  assert.ok(team(project).every(employee => employee.reasoningEffort === 'high'));
+  const employees = team(project); employees[1].reasoningEffort = 'low';
+  project.settings.employees = employees;
+  assert.equal(team(project)[1].reasoningEffort, 'low');
+  assert.ok(team({ ...f.project, settings: { hostType: 'claudecode', reasoningEffort: 'high' } }).every(employee => employee.reasoningEffort === ''));
+});
