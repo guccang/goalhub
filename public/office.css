@@ -15,8 +15,8 @@
 .office-connection:before { content:""; display:inline-block; width:5px; height:5px; background:#67a48c; margin-right:5px; }
 .office-connection.offline { color:#ac7650; }
 .office-connection.offline:before { background:#c88a52; }
-.office-canvas-wrap { position:relative; background:#d9e3d8; }
-#office-canvas { display:block; width:100%; aspect-ratio:720/460; image-rendering:auto; touch-action:none; cursor:grab; }
+.office-canvas-wrap { position:relative; background:#1a1320; }
+#office-canvas { display:block; width:100%; aspect-ratio:34/22; min-height:320px; position:relative; image-rendering:auto; touch-action:none; cursor:grab; }
 #office-canvas:active { cursor:grabbing; }
 #office-canvas-error { padding:25px; color:#85573c; font-size:12px; }
 .office-scene-footer { padding:10px 13px; display:flex; align-items:center; justify-content:space-between; gap:12px; background:#f7f8ef; border-top:1px solid #c7d2c2; }
@@ -70,3 +70,10 @@
 @media(max-width:1200px) { .office-view { grid-template-columns:minmax(0,1fr) 254px; gap:17px; padding:22px; }.office-controls { padding:16px; }.office-roster { gap:5px; }.office-roster-item { gap:5px; padding:8px 3px; }.office-roster-item strong { font-size:10px; }.office-roster-item canvas { width:23px; height:36px; }.office-scene-heading>div { align-items:flex-start; flex-direction:column; gap:3px; }.office-legend { gap:7px; font-size:8px; }.office-camera button { padding:3px 5px; font-size:9px; }.office-scene-footer { padding:9px 10px; gap:7px; }.office-scene-heading { padding:10px 12px; } }
 @media(max-width:1020px) { .office-view { grid-template-columns:1fr; }.office-controls { display:grid; grid-template-columns:1fr 1fr; gap:0 25px; }.office-person,.office-agent-description,.office-assignment { grid-column:1; }.office-controls>#office-steer-form { grid-column:2; grid-row:1 / span 4; border-top:0; margin-top:0; padding-top:0; }.office-instructions { grid-column:2; }.office-scene-heading>div { flex-direction:row; align-items:center; gap:12px; } }
 @media(max-width:600px) { .workspace-mode { padding:12px 17px; }.workspace-mode>span { display:none; }.workspace-mode button { padding:6px 12px; font-size:11px; }.office-view { padding:18px 13px; gap:19px; }.office-scene-heading { padding:10px; }.office-scene-heading>div { flex-direction:column; align-items:flex-start; gap:2px; }.office-scene-heading h2 { font-size:12px; }.office-connection { font-size:8px; }#office-progress { font-size:9px; }.office-scene-footer { flex-wrap:wrap; justify-content:center; }.office-legend { width:100%; justify-content:center; gap:15px; }.office-camera { gap:7px; }.office-roster { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:16px 0; }.office-roster-item { padding:8px; gap:12px; justify-content:flex-start; }.office-roster-item canvas { width:27px; height:42px; }.office-roster-item strong { font-size:12px; }.office-controls { display:block; padding:20px; }.office-controls>#office-steer-form { margin-top:18px; padding-top:18px; border-top:1px solid #e9edf0; }.office-attribution>span { margin-left:0; width:100%; }.project-questions { margin:18px 13px 0; }#office-output { height:190px; font-size:10px; }.office-terminal-heading { padding:10px; } }
+
+/* 完整地图保留原版比例，展开时为场景提供整行空间。 */
+#office-canvas>div { position:absolute; inset:0; } #office-canvas canvas { display:block; }
+.office-view.expanded { grid-template-columns: minmax(0,1fr); max-width:1900px; }
+.office-view.expanded .office-controls { display:none; }
+.office-view.expanded #office-canvas { height:min(76vh,1000px); aspect-ratio:auto; }
+@media(max-width:600px) { #office-canvas { min-height:340px; }.office-view.expanded #office-canvas { height:65vh; } }

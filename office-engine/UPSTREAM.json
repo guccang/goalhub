@@ -1,0 +1,42 @@
+{
+  "repository": "https://github.com/chaitanyagiri/munder-difflin",
+  "commit": "91015c0e1316572fe1c771ae3ece162ae0bd92c6",
+  "originalSha256": {
+    "scene/office/cafeteriaLines.ts": "c2e0a8b997c96eb17907b141f541570fd4f16cb08cee4118d1cb3b97df2e15b0",
+    "scene/office/Camera.ts": "d2a473b0a9b739025fd499d41739b41ca378ee3f9dec0a4c9cef1bcc124c4575",
+    "scene/office/cast.ts": "5a79bc019f617c9e9488c5ba22ae2b2ee4750ed1ac034ed38ae9aa452e8b8e68",
+    "scene/office/Character.ts": "8dc3bc7d2685ba6e31a68a3b587730815aa25b0c7f7b7140084485dedba4e43b",
+    "scene/office/CharacterSprite.ts": "b2f0872a0d95961eb8375e69615b3246399e6af355270433662c0f8d151838d5",
+    "scene/office/DeskScreen.ts": "d2fd133e9ce5e273851a9fbb5886f1e427adfc9dbfe312a40de6296e1077073a",
+    "scene/office/glRecovery.ts": "9df30bda3c4a4b6ddbc5ffad3ffdbcbde09a2ea047834f40b244d6d4b1eb6e7c",
+    "scene/office/MessageEnvelope.ts": "12e4fb977166357ad4ee106e373d414f73bcf1ce303bdb1d8efb5e2cfffce71b",
+    "scene/office/OfficeFloor.tsx": "5cbb83fcb8932b7603dec3038cdc8d92cc25e47d4bb68bcd23300bb3498c8b5a",
+    "scene/office/pathfinding.ts": "3a2404b89b301cda5f24004a198939c8fb8f9bc5954969467b55ecd7bc60ca5c",
+    "scene/office/portraitArt.ts": "ddf170aafcff4edbabd05dc4fdc6936c756d8d71f62c1b9f22e257e22a3ed9cf",
+    "scene/office/SeatPool.ts": "7011ff378b6bf5c252c90f55ba7dab914d05fe1cf8d1391511826d73b947c1e6",
+    "scene/office/SpriteAdapter.ts": "94eadfb23aea8816afd00d98f6701898a7390726cfb50fad7d1f9935800b3f65",
+    "scene/office/themeLoader.ts": "e1f699fa50746709cfef94c4eb17caab56b8bedff8dc491a36126670d1fdd8bf",
+    "scene/office/themeRegistry.ts": "0b091c2a129da169940eaab7c8261712a53bd9de9142f21984af6242b5f401bd",
+    "scene/office/ThoughtBubble.ts": "176b42d7182880408363c106979ae79978d1f40070278a56d2d978502bfbd840",
+    "scene/office/TiledMapRenderer.ts": "0a97968a03c517503edf01a4ff3e07af0a09ca12233ddc77dcba836cc32cd443",
+    "scene/office/ToolBubble.ts": "f446dd127bec0738915db2a30208f8f68d0e00bdf3ca08c01aaa53019e8a4f36",
+    "assets/ATTRIBUTION.md": "dc507ddf336b3f8276f54717381879a13c63f8043a0d274b9d9341ff503e2bc8",
+    "assets/fonts/inter-latin-var.woff2": "c940764593d0fe5d596be327ca7558855e018039fb78509aa21921fd3644c3e4",
+    "assets/fonts/jetbrains-mono-latin-var.woff2": "2c32b9b3ee358c119e210f6f5195f9bd34894d78a785ff2e95d60e718e400af4",
+    "assets/fonts/LICENSE.txt": "b561c67eab6b21003f943c375140a4b6b9054979e742877871b8cca457d6c254",
+    "assets/fonts/press-start-2p-latin-400.woff2": "42144b97bd2942ea606e5d880684eae0f7be5c804bdd57b1faac5a8d7699ae6e",
+    "assets/maps/brooklyn99.tmj": "0fe41e76d075ccf3fd612f515812100e28b53b2665a92e44811d4c56a4ce8a1e",
+    "assets/maps/office.tmj": "4272e113b43cb833744f7d358283bc68a45e71089cf1baa38a502f24b63dc210",
+    "assets/tilesets/a5-office-floors-walls.png": "7983d4b5782bd5ea80ead73310c92681f36b8d15bd2996ba5aff35953e656f3c",
+    "assets/tilesets/interiors.png": "01a890f9e34d8dc8d7e275489143b837569127d5f928419e6b6edc54b9b5ff33",
+    "assets/tilesets/LIMEZUASSETS-LICENSE.txt": "b3e3105969a3a8408763a07fd7883e9516bfcdc1c13a20ec98e7ecb5483e238b",
+    "assets/tilesets/office-tileset.png": "95d448c5df9d726799abe8c3ce211ead27f8e503dca62f616e044b63aa42fa8e"
+  },
+  "adaptations": [
+    "GoalHub store/IPC adapter",
+    "Chinese font and labels",
+    "Web camera controls and lifecycle",
+    "Reduced motion and manual ticker",
+    "No demo message injection"
+  ]
+}

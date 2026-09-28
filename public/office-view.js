@@ -14,6 +14,13 @@ export class OfficeView {
     this.root = document.querySelector('#office-view'); this.selected = 'developer'; this.online = true; this.sending = false; this.drafts = new Map();
     try { this.scene = new OfficeScene(this.find('#office-canvas'), (role) => this.select(role)); }
     catch (error) { this.find('#office-canvas-error').hidden = false; this.find('#office-canvas-error').textContent = `画布暂不可用，可使用下方角色列表与控制面板：${error.message}`; }
+    this.root.addEventListener('office:navigate', event => {
+      if (['human', 'controls'].includes(event.detail)) { this.root.classList.remove('expanded'); const expand = this.find('[data-office-camera=expand]'); expand.textContent = '展开'; expand.setAttribute('aria-label', '展开办公室'); }
+      if (event.detail === 'tasks') { document.querySelector('#mode-dashboard').click(); document.querySelector('#tab-tasks').click(); document.querySelector('#task-list').scrollIntoView({ block: 'center' }); }
+      else if (event.detail === 'human') { const questions = document.querySelector('#question-panel'); (questions.hidden ? this.find('#office-steer-form') : questions).scrollIntoView({ block: 'center' }); }
+      else if (event.detail === 'triggers') { document.querySelector('#mode-dashboard').click(); document.querySelector('#evaluation-copy').scrollIntoView({ block: 'center' }); }
+      else { this.root.classList.remove('expanded'); this.find('#office-run-control').scrollIntoView({ block: 'center' }); }
+    });
     this.find('#office-motion').setAttribute('aria-pressed', String(!this.scene?.motion));
     this.root.addEventListener('click', async (event) => {
       const button = event.target.closest('button');
@@ -23,6 +30,7 @@ export class OfficeView {
         const camera = button.dataset.officeCamera;
         if (camera === 'in') this.scene?.zoomBy(.25);
         if (camera === 'out') this.scene?.zoomBy(-.25);
+        if (camera === 'expand') { const expanded = this.root.classList.toggle('expanded'); button.textContent = expanded ? '收起' : '展开'; button.setAttribute('aria-label', expanded ? '收起办公室' : '展开办公室'); }
         if (camera === 'fit') this.scene?.fit();
         if (camera === 'motion') { this.scene?.setMotion(!this.scene.motion); button.setAttribute('aria-pressed', String(!this.scene?.motion)); }
       }
@@ -63,6 +71,7 @@ export class OfficeView {
   // update 渲染服务器真实快照，并在项目切换时隔离草稿与选中角色。
   update(project, busy = false) {
     if (!project.office) return;
+    this.scene?.setProject(project);
     const reconnect = !this.online;
     if (this.project?.id !== project.id) {
       if (this.project) this.drafts.set(this.project.id, this.find('#office-instruction').value);

@@ -290,6 +290,12 @@ test('办公室 HTTP 快照、补充指令与上游模块可访问，跨源写�
   assert.equal(script.status, 200); assert.match(script.headers.get('content-type'), /javascript/);
   assert.ok((await script.text()).includes('sceneFrameBufs'));
   assert.equal((await fetch(`${base}/office-license.txt`)).status, 200);
+  const engine = await fetch(`${base}/office-engine/engine.js`); assert.equal(engine.status, 200);
+  const asset = (await engine.text()).match(/\/office-engine\/assets\/office-tileset-[A-Z0-9]+\.png/)[0];
+  const image = await fetch(`${base}${asset}`); assert.equal(image.status, 200); assert.match(image.headers.get('content-type'), /image\/png/);
+  assert.equal((await fetch(`${base}/office-engine/ASSET-LICENSE.txt`)).status, 200);
+  assert.equal((await fetch(`${base}/office-engine/../../server.mjs`)).status, 404);
+
   const forbidden = await fetch(`${endpoint}/steer`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://example.org' }, body: JSON.stringify({ content: '外部指令' }) });
   assert.equal(forbidden.status, 403); assert.equal(f.store.instructions(f.project.id).length, 0);
   const sent = await fetch(`${endpoint}/steer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '保持无需第三方依赖' }) });
