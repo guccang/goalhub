@@ -7,7 +7,7 @@ import { setState } from './store';
 import { goalhubBridge } from './bridge';
 
 export class OfficeScene {
-  root; container; onSelect; motion = !matchMedia('(prefers-reduced-motion: reduce)').matches; visible = false; connected = true; messages = []; projectId = ''; lastEvent: number | null = null; abort = new AbortController();
+  root; container; onSelect; motion = !matchMedia('(prefers-reduced-motion: reduce)').matches; visible = false; connected = true; messages = []; projectId = ''; sceneKey = ''; lastEvent: number | null = null; abort = new AbortController();
   // constructor 挂载原版场景，并绑定拖动、滚轮和场景道具入口。
   constructor(container: HTMLElement, onSelect: (id: string) => void) {
     this.container = container; this.onSelect = onSelect; this.root = createRoot(container);
@@ -28,18 +28,20 @@ export class OfficeScene {
     container.addEventListener('wheel', event => { event.preventDefault(); this.zoomBy(event.deltaY < 0 ? .15 : -.15); }, { ...options, passive: false });
   }
   // mount 通过项目键重建场景，隔离座位、气泡、看板动画和历史消息。
-  mount() { this.root.render(<OfficeFloor key={this.projectId} />); }
+  mount() { this.root.render(<OfficeFloor key={this.sceneKey} />); }
   // online 冻结失联画面，避免把旧快照显示成实时工作。
   get online() { return this.connected; }
   set online(value: boolean) { this.connected = value; this.visibility(); }
   // update 同步真实角色与交接，不为未运行的角色伪造工作状态。
   update(snapshot: any, reconnect = false) {
-    if (snapshot.projectId !== this.projectId) { this.projectId = snapshot.projectId; this.lastEvent = null; setState({ agents: [] }); this.mount(); }
+    // 人物或负责人改变时重建座位与精灵，避免表单已改但办公室仍显示旧人物。
+    const sceneKey = JSON.stringify([snapshot.projectId, snapshot.actors.filter((actor: any) => actor.kind !== 'facility').map((actor: any) => [actor.id, actor.character, actor.isLead, actor.enabled])]);
+    if (sceneKey !== this.sceneKey) { this.projectId = snapshot.projectId; this.sceneKey = sceneKey; this.lastEvent = null; setState({ agents: [] }); this.mount(); }
     const accents = ['coral', 'sky', 'lemon', 'mint'];
     // 经理办公室只有一个主座位，其他同职责员工使用普通工位。
-    const managerId = snapshot.actors.find((actor: any) => actor.role === 'planner' && actor.enabled)?.id;
+    const managerId = snapshot.actors.find((actor: any) => actor.isLead && actor.enabled)?.id;
     // 只有员工生成像素人物；测试命令设施不会变成人物或触发员工工作动画。
-    setState({ agents: snapshot.actors.filter((actor: any) => actor.kind !== 'facility').map((actor: any, index: number) => ({ id: actor.id, language: actor.effectiveLanguage, character: actor.character, isGod: actor.id === managerId, accent: accents[index % accents.length], status: actor.state === 'paused' ? 'waiting' : actor.state === 'error' ? 'blocked' : actor.state, action: speechToken(`activity.${actor.state === 'working' ? actor.role : ['success', 'paused', 'blocked', 'error'].includes(actor.state) ? actor.state : 'idle'}`), carrying: '', lastPrompt: '' })) });
+    setState({ agents: snapshot.actors.filter((actor: any) => actor.kind !== 'facility').map((actor: any, index: number) => ({ id: actor.id, language: actor.effectiveLanguage, character: actor.character, isGod: actor.id === managerId, accent: accents[index % accents.length], status: actor.state === 'paused' ? 'waiting' : actor.state === 'error' ? 'blocked' : actor.state, action: speechToken(`activity.${actor.state === 'working' ? actor.role === 'coordinator' ? 'planner' : actor.role : ['success', 'paused', 'blocked', 'error'].includes(actor.state) ? actor.state : 'idle'}`), carrying: '', lastPrompt: '' })) });
     for (const event of snapshot.messages) {
       if (this.lastEvent !== null && event.id > this.lastEvent && !reconnect && this.visible && this.motion && this.connected) goalhubBridge.emit({ from: event.from, targets: [event.to], act: event.kind.includes('completed') ? 'done' : event.kind === 'input.required' ? 'query' : 'inform', needsHuman: event.to === 'human' });
     }

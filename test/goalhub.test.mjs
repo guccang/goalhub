@@ -15,7 +15,7 @@ import { team, validateTeam, assignEmployee, requireTeam } from '../lib/employee
 import { buildOfficeSnapshot } from '../lib/office.mjs';
 import { sceneFrameBufs, SCENE_W, SCENE_H } from '../public/vendor/munder-difflin/portrait-art.js';
 
-const plan = { needsInput: false, summary: '实现可验证的本地文件功能', tasks: [{ title: '实现功能', description: '生成 answer.txt，内容应为 42。', checkIds: ['file'] }], checks: [{ id: 'file', title: '验证结果文件', command: 'verify-answer', expectation: 'answer.txt 内容为 42' }] };
+const plan = { needsInput: false, summary: '实现可验证的本地文件功能', tasks: [{ assignee: 'developer', title: '实现功能', description: '生成 answer.txt，内容应为 42。', checkIds: ['file'] }], checks: [{ id: 'file', title: '验证结果文件', command: 'verify-answer', expectation: 'answer.txt 内容为 42' }] };
 
 // waitUntil 有界等待异步状态，失败时输出实际状态以便诊断。
 async function waitUntil(predicate, message, timeout = 15000) {
@@ -30,7 +30,7 @@ async function waitUntil(predicate, message, timeout = 15000) {
 function fixture(t, behavior = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'goalhub-test-'));
   const store = new Store(join(directory, 'state.sqlite')), git = new ProjectGit(directory, store);
-  const counts = { probe: 0, developer: 0, planner: 0, evaluator: 0, final: 0, test: 0 }, calls = [], stopped = [];
+  const counts = { coordinator: 0, probe: 0, developer: 0, planner: 0, evaluator: 0, final: 0, test: 0 }, calls = [], stopped = [];
   const runtime = {
     dataDir: directory,
     // load 使用公共配置模块，模型调用仍由下方可控宿主模拟。
@@ -39,7 +39,7 @@ function fixture(t, behavior = {}) {
     status() { return { available: true, message: '测试宿主' }; },
     // host 模拟可停止的公共 Agent 句柄，并写入真实源码文件。
     async host(options) {
-      const role = options.input.includes('这是宿主连通性测试') ? 'probe' : options.input.includes('你是规划 Agent') ? 'planner' : options.input.includes('你是执行 Agent') ? 'developer' : options.input.includes('最终验收评估') ? 'final' : 'evaluator';
+      const role = options.input.includes('这是宿主连通性测试') ? 'probe' : options.input.includes('你是任务分配负责人') ? 'coordinator' : options.input.includes('你是规划 Agent') ? 'planner' : options.input.includes('你是执行 Agent') ? 'developer' : options.input.includes('最终验收评估') ? 'final' : 'evaluator';
       const count = ++counts[role]; calls.push({ ...options, role });
       options.onSession?.(`${role}-session`); options.onEvent?.('output', `${role} 原始流事件`);
       let resolveDone, finished = false;
@@ -57,6 +57,7 @@ function fixture(t, behavior = {}) {
           let reply = custom;
           if (reply === undefined && role === 'probe') reply = options.input.match(/GOALHUB_OK_[a-f0-9-]+/)[0];
           if (reply === undefined && role === 'planner') reply = plan;
+          if (reply === undefined && role === 'coordinator') reply = { needsInput: false, assignee: 'developer', summary: '根据职位安排开发员工修复' };
           if (reply === undefined && role === 'developer') { writeFileSync(join(options.cwd, 'answer.txt'), '42'); reply = { status: 'done', summary: '已生成结果文件并完成开发' }; }
           if (reply === undefined) reply = { action: role === 'final' ? 'complete' : 'continue', summary: '目标与测试证据一致' };
           finished = true;
@@ -373,7 +374,7 @@ test('办公室映射并发角色、历史轮次和真实交接，不伪造运�
   for (let i = 0; i < 105; i++) { const run = f.store.beginRun(f.project.id, 'developer', `第 ${i} 轮`); f.store.finishRun(run, 'completed', '开发结果'); }
   const developer = f.store.beginRun(f.project.id, 'developer', '正在开发');
   f.store.event(f.project.id, 'agent.output', '编写真实源码', developer);
-  f.store.beginRun(f.project.id, 'evaluator', '正在评估'); f.store.event(f.project.id, 'plan.created', '真实任务交接');
+  f.store.beginRun(f.project.id, 'evaluator', '正在评估'); f.store.event(f.project.id, 'plan.created', JSON.stringify(plan));
   const active = { controls: new Map([[f.project.id, {}]]) };
   const snapshot = buildOfficeSnapshot(f.store, active, f.project.id);
   assert.equal(snapshot.actors.find((actor) => actor.id === 'planner').run.id, planner);
@@ -497,7 +498,7 @@ test('自动确认模式生成计划后持续执行并记录确认', async (t) =
 test('项目员工宿主模型思考强度传入执行并保留审计快照', async t => {
   const f = fixture(t), employees = team(f.project);
   employees[0].model = 'planning-model'; employees[0].reasoningEffort = 'high';
-  employees[1].name = '前端工程师'; employees[1].hostType = 'claudecode'; employees[1].model = 'vendor/frontend'; employees[1].instructions = '优先保证可访问性';
+  employees[1].position = '前端工程师'; employees[1].hostType = 'claudecode'; employees[1].model = 'vendor/frontend'; employees[1].instructions = '优先保证可访问性';
   f.store.saveEmployees(f.project.id, validateTeam(employees));
   f.orchestrator.start(f.project.id); await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '员工执行未完成');
   assert.equal(f.store.project(f.project.id).status, 'completed');
@@ -506,25 +507,25 @@ test('项目员工宿主模型思考强度传入执行并保留审计快照', as
   const developer = f.calls.find(call => call.role === 'developer');
   assert.equal(developer.hostType, 'claudecode'); assert.equal(developer.model, 'vendor/frontend'); assert.match(developer.input, /优先保证可访问性/);
   const run = f.store.employeeRun(f.project.id, employees[1]);
-  assert.equal(JSON.parse(run.executor).name, '前端工程师');
+  assert.equal(JSON.parse(run.executor).name, 'Jim'); assert.equal(JSON.parse(run.executor).position, '前端工程师');
   f.store.saveEmployees(f.project.id, employees.filter(employee => employee.role !== 'developer'));
-  assert.ok(f.store.run(run.id)); assert.throws(() => requireTeam(f.store.project(f.project.id)), /软件工程师/);
+  assert.ok(f.store.run(run.id)); assert.doesNotThrow(() => requireTeam(f.store.project(f.project.id)));
   const other = f.store.create({ name: '另一项目', goal: '独立设置', settings: f.project.settings });
   assert.equal(team(other)[1].hostType, 'codex');
 });
 
-// 同职责分配轮换，但会话只在员工与完整配置相同的情况下复用。
-test('员工轮换与模型切换隔离会话，重复编号和不支持的参数被拒绝', t => {
+// 按任务明确指派员工，职位或模型变化后隔离原会话。
+test('员工明确分配与模型切换隔离会话，重复编号和不支持的参数被拒绝', t => {
   const f = fixture(t), employees = team(f.project);
   employees.push({ ...employees[1], id: 'second-dev', name: '第二开发员工' });
   f.store.saveEmployees(f.project.id, validateTeam(employees));
-  const first = assignEmployee(f.store, f.store.project(f.project.id), 'developer');
+  const first = assignEmployee(f.store, f.store.project(f.project.id), 'developer', 'developer');
   const run = f.store.beginRun(f.project.id, 'developer', '任务', first); f.store.session(run, 'session-first'); f.store.finishRun(run, 'completed', 'done');
-  const second = assignEmployee(f.store, f.store.project(f.project.id), 'developer'); assert.equal(second.id, 'second-dev');
+  const second = assignEmployee(f.store, f.store.project(f.project.id), 'developer', 'second-dev'); assert.equal(second.id, 'second-dev');
   assert.equal(f.store.employeeSession(f.project.id, 'developer', second.configKey), '');
   assert.equal(f.store.employeeSession(f.project.id, 'developer', first.configKey), 'session-first');
   employees.splice(-1); employees[1].model = 'another-model'; f.store.saveEmployees(f.project.id, employees);
-  const changed = assignEmployee(f.store, f.store.project(f.project.id), 'developer');
+  const changed = assignEmployee(f.store, f.store.project(f.project.id), 'developer', 'developer');
   assert.notEqual(changed.configKey, first.configKey); assert.equal(f.store.employeeSession(f.project.id, 'developer', changed.configKey), '');
   assert.throws(() => validateTeam([...employees, employees[0]]), /重复/);
   assert.throws(() => validateTeam([{ ...employees[0], hostType: 'claudecode', reasoningEffort: 'high' }]), /仅 Codex/);
@@ -551,19 +552,19 @@ test('员工管理接口拒绝运行中变更并在暂停后持久化', async t 
 test('项目语言和员工母语分别保存，真实调度输入携带有效语言', async t => {
   const f = fixture(t), employees = team(f.project);
   assert.equal(effectiveLanguage(f.project), 'zh-CN');
-  employees[1].nativeLanguage = 'ja'; employees[3].nativeLanguage = 'ko';
+  employees[1].nativeLanguage = 'ja'; employees[0].nativeLanguage = 'ko';
   f.store.saveEmployees(f.project.id, validateTeam(employees), 'en');
   const project = f.store.project(f.project.id);
-  assert.equal(effectiveLanguage(project, employees[0]), 'en');
+  assert.equal(effectiveLanguage(project, employees[0]), 'ko');
   assert.equal(effectiveLanguage(project, employees[1]), 'ja');
-  const before = assignEmployee(f.store, project, 'developer').configKey;
+  const before = assignEmployee(f.store, project, 'developer', 'developer').configKey;
   f.store.saveEmployees(f.project.id, validateTeam(employees), 'zh-CN');
-  assert.notEqual(assignEmployee(f.store, f.store.project(f.project.id), 'developer').configKey, before);
+  assert.notEqual(assignEmployee(f.store, f.store.project(f.project.id), 'developer', 'developer').configKey, before);
   f.store.saveEmployees(f.project.id, validateTeam(employees), 'en');
   f.orchestrator.start(f.project.id);
   await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '语言配置执行未结束');
   assert.equal(f.store.project(f.project.id).status, 'completed');
-  assert.match(f.calls.find(call => call.role === 'planner').input, /English \(en\)/);
+  assert.match(f.calls.find(call => call.role === 'planner').input, /한국어 \(ko\)/);
   assert.match(f.calls.find(call => call.role === 'developer').input, /日本語 \(ja\)/);
   assert.match(f.calls.find(call => call.role === 'final').input, /한국어 \(ko\)/);
   assert.match(f.calls.find(call => call.role === 'developer').input, /JSON 字段名/);
@@ -602,4 +603,121 @@ test('动态模型 HTTP 接口返回宿主目录和前端组件', async t => {
   assert.equal(result.models[0].model, 'codex-dynamic');
   assert.equal((await fetch(base + '/model-picker.js')).status, 200);
   assert.equal(server.hostSetup.profile().revision, '');
+});
+
+// 任意员工编号和职位都能完成真实调度，负责人不依赖旧 planner 职责。
+test('两人项目按自定义职位分配任务，负责人和执行宿主真实生效', async t => {
+  const f = fixture(t, { planner: () => ({ ...plan, tasks: [{ ...plan.tasks[0], assignee: 'unity-worker' }] }) });
+  const defaults = team(f.project);
+  const manager = { ...defaults[0], id: 'lead-pam', character: 'pam', role: undefined, position: '项目负责人', model: 'lead-model' };
+  const worker = { ...defaults[1], id: 'unity-worker', role: undefined, position: 'Unity 客户端开发', instructions: '遵循组件架构，完成协议接入和验证。', hostType: 'claudecode', model: 'unity-model' };
+  f.store.saveEmployees(f.project.id, validateTeam([manager, worker]), 'zh-CN', '项目使用组件架构；协议版本不得改变。');
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '两人团队未结束', 30000);
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.store.tasks(f.project.id)[0].assignee, 'unity-worker');
+  const execution = f.calls.find(call => call.role === 'developer');
+  assert.equal(execution.model, 'unity-model'); assert.equal(execution.hostType, 'claudecode');
+  assert.match(execution.input, /Unity 客户端开发/); assert.match(execution.input, /协议版本不得改变/);
+  assert.equal(f.calls.find(call => call.role === 'final').model, 'lead-model');
+  const snapshot = buildOfficeSnapshot(f.store, f.orchestrator, f.project.id);
+  assert.equal(snapshot.actors.find(actor => actor.isLead).id, 'lead-pam');
+  assert.equal(snapshot.actors.find(actor => actor.id === 'lead-pam').name, 'Pam');
+  assert.equal(snapshot.actors.find(actor => actor.id === 'unity-worker').kind, 'employee');
+  assert.ok(snapshot.messages.some(message => message.from === 'lead-pam' && message.to === 'unity-worker'));
+  assert.ok(snapshot.messages.some(message => message.from === 'unity-worker' && message.to === 'lead-pam'));
+  assert.equal(f.store.sessions(f.project.id).length, 2);
+});
+
+// 负责人自己执行时不能启动同一个员工的并发评估。
+test('单员工项目可自行完成任务，执行期间负责人评估不会重入', async t => {
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const f = fixture(t, {
+    planner: () => ({ ...plan, tasks: [{ ...plan.tasks[0], assignee: 'solo' }] }),
+    // developer 保持任务运行，便于触发进度检查验证员工互斥。
+    async developer() { await pending; },
+  });
+  f.store.saveEmployees(f.project.id, validateTeam([{ ...team(f.project)[0], id: 'solo', role: undefined }]));
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => f.counts.developer === 1, '负责人没有开始执行', 30000);
+  f.orchestrator.evaluateNow(f.project.id);
+  assert.equal(f.counts.evaluator, 0);
+  release();
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '单员工任务没有完成', 30000);
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.store.detail(f.project.id).runs.filter(run => run.role !== 'test').every(run => f.store.run(run.id).employee_id === 'solo'), true);
+});
+
+// 员工离开后任务重新分配，已完成任务和原运行快照不被改写。
+test('移除已分配员工后由负责人重新安排，恢复不依赖旧职责', async t => {
+  const f = fixture(t, { coordinator: () => ({ needsInput: false, assignee: 'quality', summary: '由具备验证能力的 Pam 接手' }) });
+  f.store.plan(f.project.id, plan);
+  f.store.saveEmployees(f.project.id, validateTeam(team(f.project).filter(employee => employee.id !== 'developer')));
+  assert.equal(f.store.tasks(f.project.id)[0].assignee, '');
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '重新分配未完成', 30000);
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.store.tasks(f.project.id)[0].assignee, 'quality');
+  assert.equal(f.counts.coordinator, 1);
+  const run = f.store.detail(f.project.id).runs.find(run => run.role === 'developer');
+  assert.equal(f.store.run(run.id).employee_id, 'quality');
+  assert.ok(f.store.events(f.project.id).some(event => event.kind === 'task.assigned'));
+});
+
+// 不完整草稿可保存，启动条件与负责人唯一性必须在服务端执行。
+test('职位草稿、唯一负责人和跨项目会话隔离', t => {
+  const f = fixture(t), employees = team(f.project);
+  assert.doesNotThrow(() => validateTeam([]));
+  assert.throws(() => validateTeam([{ ...employees[0], enabled: false }]), /负责人必须/);
+  assert.throws(() => validateTeam([employees[0], { ...employees[1], isLead: true }]), /只能指定/);
+  f.store.saveEmployees(f.project.id, validateTeam([{ ...employees[0], position: '' }]));
+  assert.throws(() => f.orchestrator.start(f.project.id), /职位名称/);
+  f.store.saveEmployees(f.project.id, validateTeam([employees[0]]));
+  assert.doesNotThrow(() => requireTeam(f.store.project(f.project.id)));
+  const first = assignEmployee(f.store, f.store.project(f.project.id), 'planner');
+  const run = f.store.beginRun(f.project.id, 'planner', '项目 A', first); f.store.session(run, 'only-project-a'); f.store.finishRun(run, 'completed', '结果');
+  const other = f.store.create({ name: '项目 B', settings: f.store.project(f.project.id).settings });
+  assert.equal(f.store.employeeSession(other.id, 'planner', first.configKey), '');
+  f.store.saveEmployees(other.id, validateTeam([{ ...employees[0], position: '研究负责人' }]));
+  assert.equal(team(f.store.project(f.project.id))[0].position, '项目负责人');
+  assert.equal(team(f.store.project(other.id))[0].position, '研究负责人');
+});
+
+// 规划必须指向启用员工，拒绝无法执行的指派且不会启动开发。
+test('负责人反复分配不存在员工时阻断并保存原因', async t => {
+  const f = fixture(t, { planner: () => ({ ...plan, tasks: [{ ...plan.tasks[0], assignee: 'outsider' }] }) });
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '非法分配没有结束', 30000);
+  assert.equal(f.store.project(f.project.id).status, 'blocked');
+  assert.equal(f.counts.developer, 0); assert.equal(f.store.tasks(f.project.id).length, 0);
+  assert.match(f.store.project(f.project.id).summary, /本项目启用员工/);
+});
+
+// 旧团队只迁移一次，重启保留职位、员工编号、任务指派及历史执行快照。
+test('旧职责迁移和重启保留项目员工与历史证据', t => {
+  const f = fixture(t), original = team(f.project);
+  const legacy = original.map(({ position, isLead, ...employee }) => ({ ...employee, name: '历史名称', instructions: '' }));
+  const { teamVersion, ...settings } = f.project.settings;
+  f.store.db.prepare('UPDATE projects SET settings=? WHERE id=?').run(JSON.stringify({ ...settings, employees: legacy }), f.project.id);
+  f.store.plan(f.project.id, plan);
+  const runId = f.store.beginRun(f.project.id, 'developer', '历史输入', { ...legacy[1], configKey: 'old-key' });
+  f.store.finishRun(runId, 'completed', '历史结果');
+  const reopened = new Store(join(f.directory, 'state.sqlite'));
+  try {
+    const project = reopened.project(f.project.id), employees = team(project);
+    assert.equal(project.settings.teamVersion, 2);
+    assert.equal(employees.find(employee => employee.isLead).id, 'planner');
+    assert.equal(employees[1].position, '开发工程师');
+    assert.ok(employees[1].instructions); assert.equal(employees[1].name, 'Jim');
+    assert.equal(reopened.tasks(f.project.id)[0].assignee, 'developer');
+    assert.equal(JSON.parse(reopened.run(runId).executor).name, '历史名称');
+    const updated = employees.map(employee => ({ ...employee, position: employee.id === 'developer' ? '自定义客户端职位' : employee.position }));
+    reopened.saveEmployees(project.id, validateTeam(updated), 'zh-CN', '持续维护项目架构');
+  } finally { reopened.close(); }
+  const again = new Store(join(f.directory, 'state.sqlite'));
+  try {
+    assert.equal(team(again.project(f.project.id))[1].position, '自定义客户端职位');
+    assert.equal(again.project(f.project.id).settings.context, '持续维护项目架构');
+  } finally { again.close(); }
 });

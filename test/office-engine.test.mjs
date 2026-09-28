@@ -24,10 +24,11 @@ test('完整办公室地图及三张图集与固定上游一致，图块引用�
 
 // 场景纸条必须来自实际任务，人工问题和完成状态按原版契约映射。
 test('办公室桥接保留真实任务、待答问题和消息取消订阅', async () => {
-  goalhubBridge.project = { status: 'running', tasks: [{ id: 'a', status: 'done' }, { id: 'b', status: 'running' }], questions: [{ id: 'q', prompt: '需要资料', answer: null }] };
+  goalhubBridge.project = { status: 'running', tasks: [{ id: 'a', status: 'done', assignee: 'pam' }, { id: 'b', status: 'running', assignee: 'jim' }], questions: [{ id: 'q', prompt: '需要资料', answer: null }] };
   const { tasks } = await goalhubBridge.hiveTasks();
   assert.deepEqual(tasks.map(task => task.status), ['done', 'doing', 'blocked']);
   assert.equal(tasks[2].humanQA[0].q, '需要资料');
+  assert.equal(tasks[0].assignee, 'pam'); assert.equal(tasks[1].assignee, 'jim');
   const messages = []; const unsubscribe = goalhubBridge.onHiveMessage(message => messages.push(message));
   goalhubBridge.emit({ from: 'planner', targets: ['developer'], act: 'request', needsHuman: false });
   unsubscribe(); goalhubBridge.emit({ from: 'test', targets: ['developer'], act: 'done', needsHuman: false });

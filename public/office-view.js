@@ -92,6 +92,7 @@ export class OfficeView {
       this.selected = project.office.actors.find((actor) => actor.state === 'working')?.id || 'developer';
       this.outputKey = null; this.rosterKey = null;
     }
+    if (!project.office.actors.some(actor => actor.id === this.selected)) this.selected = project.office.actors.find(actor => actor.isLead)?.id || project.office.actors[0]?.id;
     this.project = project; this.snapshot = project.office; this.busy = busy; this.online = true;
     if (!this.snapshot.actors.some(actor => actor.id === this.selected)) { this.selected = this.snapshot.actors[0]?.id || 'test'; this.outputKey = null; }
     this.scene?.update(project.office, reconnect); this.scene?.select(this.selected);
@@ -111,12 +112,12 @@ export class OfficeView {
 
   // renderRoster 在状态变化时更新可键盘操作的角色按钮。
   renderRoster() {
-    const signature = JSON.stringify(this.snapshot.actors.map((actor) => [actor.id, actor.name, actor.state, actor.character, this.selected === actor.id]));
+    const signature = JSON.stringify(this.snapshot.actors.map((actor) => [actor.id, actor.name, actor.state, actor.character, actor.position, actor.isLead, this.selected === actor.id]));
     if (signature === this.rosterKey) return;
     this.rosterKey = signature;
     const focused = document.activeElement?.dataset.officeRole;
     const employees = this.snapshot.actors.filter(actor => actor.kind !== 'facility');
-    this.find('#office-roster').innerHTML = employees.map((actor) => `<button class="office-roster-item ${this.selected === actor.id ? 'selected' : ''}" data-office-role="${actor.id}" aria-pressed="${this.selected === actor.id}" aria-label="${escape(actor.name)}，${states[actor.state]}"><canvas width="36" height="56" data-portrait="${actor.id}" aria-hidden="true"></canvas><span><strong>${escape(actor.name)}</strong><small class="office-state ${actor.state}">${states[actor.state]}</small></span></button>`).join('');
+    this.find('#office-roster').innerHTML = employees.map((actor) => `<button class="office-roster-item ${this.selected === actor.id ? 'selected' : ''}" data-office-role="${actor.id}" aria-pressed="${this.selected === actor.id}" aria-label="${escape(actor.name)}，${states[actor.state]}"><canvas width="36" height="56" data-portrait="${actor.id}" aria-hidden="true"></canvas><span><strong>${escape(actor.name)}${actor.isLead ? ' · 负责人' : ''}</strong><small>${escape(actor.position || '未定义职位')}</small><small class="office-state ${actor.state}">${states[actor.state]}</small></span></button>`).join('');
     for (const actor of employees) paintPortrait(this.find(`[data-portrait="${actor.id}"]`).getContext('2d'), actor.character, 2);
     const station = this.snapshot.actors.find(actor => actor.id === 'test');
     this.find('#office-test-station').textContent = `测试工作站 · ${states[station?.state] || '待命'}`;
@@ -158,7 +159,7 @@ export class OfficeView {
     run.dataset.officeControl = project.active ? 'pause' : 'start';
     run.textContent = project.status === 'awaiting_approval' ? '等待计划确认' : project.status === 'completed' ? '项目已完成' : project.active ? '暂停项目' : '继续执行';
     run.disabled = pending || project.status === 'completed' || (!project.active && ['waiting_input', 'awaiting_approval'].includes(project.status));
-    review.disabled = pending || !project.active || project.status !== 'running' || this.snapshot.actors.some((actor) => actor.role === 'evaluator' && actor.state === 'working');
+    review.disabled = pending || !project.active || project.status !== 'running' || this.snapshot.actors.some((actor) => actor.isLead && actor.state === 'working');
     const locked = ['completed', 'waiting_input', 'awaiting_approval'].includes(project.status);
     this.find('#office-instruction').disabled = pending || locked;
     this.find('#office-send').disabled = pending || locked;

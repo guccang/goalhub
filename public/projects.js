@@ -4,7 +4,7 @@ const $ = selector => document.querySelector(selector);
 function escape(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
 // number 对未知指标保持未知，不把未采集的调用伪装成零消耗。
 function number(value) { return value === null || value === undefined ? '未知' : value.toLocaleString('zh-CN'); }
-const roles = { planner: '项目协调者', developer: '开发执行者', evaluator: '进度评估', 'final-review': '最终验收' };
+const roles = { planner: '负责人规划', coordinator: '任务分配', developer: '员工执行', evaluator: '进度评估', 'final-review': '最终验收' };
 
 export class ProjectsPanel {
   // constructor 绑定项目表单，提交时固定项目编号，防止切换项目导致误操作。
@@ -22,7 +22,7 @@ export class ProjectsPanel {
       try {
         const plan = this.editPlan;
         plan.summary = values.get('summary');
-        plan.tasks.forEach((task, i) => { task.title = values.get(`title-${i}`); task.description = values.get(`description-${i}`); task.doneWhen = values.get(`done-${i}`); });
+        plan.tasks.forEach((task, i) => { task.title = values.get(`title-${i}`); task.description = values.get(`description-${i}`); task.doneWhen = values.get(`done-${i}`); task.assignee = values.get(`assignee-${i}`); });
         plan.checks.forEach((check, i) => { check.command = values.get(`command-${i}`); check.expectation = values.get(`expectation-${i}`); });
         await api(`/projects/${this.editProject}/plan`, plan); $('#edit-plan-dialog').close(); await refresh();
       } catch (error) { $('#edit-plan-error').textContent = error.message; }
@@ -46,9 +46,9 @@ export class ProjectsPanel {
     $('#reset-session').disabled = !!project.active || !!project.historical;
     $('#project-repository').textContent = `${project.paths?.repo || project.repo_path || '受管项目目录'} · 主分支 ${project.main_branch}`;
     const sessions = project.sessions || [];
-    const coordinator = sessions.find(item => item.role === 'planner');
+    const coordinator = sessions.find(item => item.isLead);
     $('#usage-summary').textContent = `项目上下文与用量 · 协调者剩余 ${coordinator?.remainingPercent == null ? '未知' : coordinator.remainingPercent.toFixed(1) + '%'} · 项目累计 ${number(project.usage?.total)} tokens`; 
-    $('#session-metrics').innerHTML = sessions.map(session => `<article class="session-row"><div><strong>${roles[session.role]}</strong><small>${escape(session.model || '等待首次调用')}</small></div><div>${session.remainingPercent === null ? '<strong>容量未知</strong><small>宿主尚未上报上下文</small>' : `<strong>剩余 ${session.remainingPercent.toFixed(1)}%</strong><meter min="0" max="100" value="${session.remainingPercent}" aria-label="${roles[session.role]}剩余上下文"></meter><small>窗口 ${number(session.window)} · 占用 ${number(session.used)} · 剩余 ${number(Math.max(0, session.window - session.used))} tokens</small>`}</div><div><small>${session.sessionId ? `会话 ${escape(session.sessionId.slice(0, 12))}…` : '尚未创建会话'}</small><small>${session.updatedAt ? `最近上报 ${new Date(session.updatedAt).toLocaleTimeString('zh-CN')}` : '恢复时沿用原会话'}</small>${session.compaction ? `<small>最近压缩 ${new Date(session.compaction.created_at).toLocaleString('zh-CN')}：${number(session.compaction.before_tokens)} → ${number(session.compaction.after_tokens)}</small>` : ''}</div></article>`).join('');
+    $('#session-metrics').innerHTML = sessions.map(session => `<article class="session-row"><div><strong>${escape(session.name || roles[session.role])}</strong><small>${escape(session.position || '')}</small><small>${escape(session.model || '等待首次调用')}</small></div><div>${session.remainingPercent === null ? '<strong>容量未知</strong><small>宿主尚未上报上下文</small>' : `<strong>剩余 ${session.remainingPercent.toFixed(1)}%</strong><meter min="0" max="100" value="${session.remainingPercent}" aria-label="${escape(session.name || roles[session.role])}剩余上下文"></meter><small>窗口 ${number(session.window)} · 占用 ${number(session.used)} · 剩余 ${number(Math.max(0, session.window - session.used))} tokens</small>`}</div><div><small>${session.sessionId ? `会话 ${escape(session.sessionId.slice(0, 12))}…` : '尚未创建会话'}</small><small>${session.updatedAt ? `最近上报 ${new Date(session.updatedAt).toLocaleTimeString('zh-CN')}` : '恢复时沿用原会话'}</small>${session.compaction ? `<small>最近压缩 ${new Date(session.compaction.created_at).toLocaleString('zh-CN')}：${number(session.compaction.before_tokens)} → ${number(session.compaction.after_tokens)}</small>` : ''}</div></article>`).join('');
     $('#project-usage').innerHTML = this.usageRows([['本次目标', project.goalUsage], ['项目累计', project.usage]]);
     $('#project-usage-details').innerHTML = this.breakdown(project.usage);
   }
@@ -70,7 +70,7 @@ export class ProjectsPanel {
   edit() {
     const p = this.project; this.editProject = p.id;
     this.editPlan = { summary: p.summary, tasks: p.tasks.map(task => ({ id: task.id, title: task.title, description: task.description, doneWhen: task.done_when, assignee: task.assignee, dependsOn: task.depends_on, checkIds: task.check_ids })), checks: p.checks.map(check => ({ id: check.id, title: check.title, command: check.command, expectation: check.expectation })) };
-    $('#edit-plan-fields').innerHTML = `<label>总体计划<textarea name="summary" required rows="4">${escape(p.summary)}</textarea></label>${this.editPlan.tasks.map((task, i) => `<fieldset><legend>任务 ${i + 1}</legend><label>名称<input name="title-${i}" required value="${escape(task.title)}"></label><label>具体工作<textarea name="description-${i}" required>${escape(task.description)}</textarea></label><label>完成条件<textarea name="done-${i}" required>${escape(task.doneWhen)}</textarea></label></fieldset>`).join('')}${this.editPlan.checks.map((check, i) => `<fieldset><legend>${escape(check.title)}</legend><label>验收命令<input name="command-${i}" required value="${escape(check.command)}"></label><label>通过条件<textarea name="expectation-${i}" required>${escape(check.expectation)}</textarea></label></fieldset>`).join('')}`;
+    $('#edit-plan-fields').innerHTML = `<label>总体计划<textarea name="summary" required rows="4">${escape(p.summary)}</textarea></label>${this.editPlan.tasks.map((task, i) => `<fieldset><legend>任务 ${i + 1}</legend><label>名称<input name="title-${i}" required value="${escape(task.title)}"></label><label>执行员工<select name="assignee-${i}" required>${p.settings.employees.filter(employee => employee.enabled).map(employee => `<option value="${escape(employee.id)}" ${employee.id === task.assignee ? 'selected' : ''}>${escape(employee.name)} · ${escape(employee.position || '未定义职位')}</option>`).join('')}</select></label><label>具体工作<textarea name="description-${i}" required>${escape(task.description)}</textarea></label><label>完成条件<textarea name="done-${i}" required>${escape(task.doneWhen)}</textarea></label></fieldset>`).join('')}${this.editPlan.checks.map((check, i) => `<fieldset><legend>${escape(check.title)}</legend><label>验收命令<input name="command-${i}" required value="${escape(check.command)}"></label><label>通过条件<textarea name="expectation-${i}" required>${escape(check.expectation)}</textarea></label></fieldset>`).join('')}`;
     $('#edit-plan-error').textContent = ''; $('#edit-plan-dialog').showModal();
   }
 }
