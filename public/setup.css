@@ -17,3 +17,13 @@
 .plan-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }.plan-columns h3 { font-size: 14px; }.plan-columns ol { list-style: none; padding: 0; }.plan-columns li { padding: 16px 0; border-bottom: 1px solid #e8edf4; }.plan-columns p { font-size: 13px; color: #60758e; line-height: 1.8; }.plan-columns code { display: block; font: inherit; font-size: 12px; background: #f0f3f8; padding: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }.plan-columns small { color: #60758e; }
 .badge.awaiting_approval { background: #fff2d7; color: #956517; }
 @media(max-width:600px) { .setup-steps { grid-template-columns: 1fr 1fr; }.plan-preview { margin: 16px 13px; padding: 16px; }.plan-columns { grid-template-columns: 1fr; }.plan-heading { align-items: flex-start; flex-direction: column; }.host-entry { margin: 8px 16px; } }
+
+/* 设置文字使用实际字号绘制，提高小字号和灰色提示的清晰度，不进行缩放。 */
+.setup-dialog { font-family:"GoalHub QiHei",sans-serif; font-size:15px; font-weight:400; line-height:1.7; }
+.setup-dialog label,.setup-dialog input,.setup-dialog select,.setup-dialog textarea,.setup-dialog button,.setup-dialog option { font-family:inherit; font-size:15px; font-weight:400; }
+.setup-dialog label { color:#263b53; }
+.setup-dialog input,.setup-dialog select,.setup-dialog textarea { color:#182d49; min-height:44px; }
+.setup-dialog .dialog-header p,.setup-dialog .setup-note,.setup-dialog .create-note,.setup-dialog summary,.setup-dialog .setup-steps li { font-size:14px; color:#43556a; }
+.setup-dialog input::placeholder,.setup-dialog textarea::placeholder { color:#69798b; opacity:1; }
+#host-test-output { font-size:14px; color:#20364d; }
+dialog::backdrop { backdrop-filter:none; }

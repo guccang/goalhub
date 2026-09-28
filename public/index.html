@@ -79,9 +79,8 @@
       </div>
     </section>
   </main>
-  <dialog id="create-dialog" class="create-dialog setup-dialog">
-    <div class="dialog-header"><div><h2>创建目标</h2><p>先验证宿主，再将目标转为可验收的实施计划。</p></div><button type="button" class="icon-button" data-action="close-create" aria-label="关闭">×</button></div>
-    <ol class="setup-steps"><li id="step-host" class="active">1 宿主配置与测试</li><li id="step-goal">2 目标拆解预览</li><li>3 自动 / 人工确认</li><li>4 开始实现</li></ol>
+  <dialog id="host-dialog" class="create-dialog setup-dialog">
+    <div class="dialog-header"><div><h2>全局宿主配置与测试</h2><p>所有目标共用此配置与测试结果。配置一次，通过后可用于多个目标。</p></div><button type="button" class="icon-button" data-action="close-host" aria-label="关闭宿主设置">×</button></div>
     <section id="setup-host">
       <form id="host-form">
         <div class="form-grid"><label>Agent 宿主<select name="hostType"><option value="codex">Codex</option><option value="claudecode">Claude Code</option><option value="deepseek-harness">DeepSeek Harness</option><option value="opencode">OpenCode</option></select></label><label>模型名称<input name="model" maxlength="150" placeholder="留空使用宿主默认模型"></label></div>
@@ -91,9 +90,14 @@
       </form>
       <p id="host-test-status" role="status" class="setup-note">请保存配置，然后测试。</p><details><summary>测试输入与输出 / 历史记录</summary><pre id="host-test-output"></pre></details>
       <p class="setup-note">测试会调用所选模型，最多等待 120 秒。通过表示本次真实调用成功。</p>
-      <div class="dialog-footer"><button class="primary" id="next-goal" disabled>下一步：输入目标</button></div>
+      <div class="dialog-footer"><button class="primary" id="next-goal">完成</button></div>
     </section>
-    <section id="setup-goal" hidden>
+    <p id="host-error" class="form-error" role="alert"></p>
+  </dialog>
+  <dialog id="create-dialog" class="create-dialog setup-dialog">
+    <div class="dialog-header"><div><h2>创建目标</h2><p>复用已验证的全局宿主，输入目标后生成任务与验收计划。</p></div><button type="button" class="icon-button" data-action="close-create" aria-label="关闭">×</button></div>
+    <ol class="setup-steps"><li>1 全局宿主</li><li class="active">2 目标拆解预览</li><li>3 自动 / 人工确认</li><li>4 开始实现</li></ol>
+    <section id="setup-goal">
       <form id="create-form">
         <p id="selected-host" class="setup-note"></p>
         <label>项目名称<input name="name" required maxlength="100" placeholder="例如：团队知识库" autocomplete="off"></label>
@@ -101,10 +105,9 @@
         <label>计划确认方式<select name="confirmationMode"><option value="manual">人工确认：预览计划，确认后开始实现</option><option value="auto">自动确认：生成计划后自动开始实现</option></select></label>
         <details class="advanced"><summary>评估间隔与执行时限</summary><label>评估间隔（分钟）<input name="evaluationMinutes" type="number" min="0.1" max="1440" step="0.1" value="5" required></label><div class="form-grid"><label>单轮 Agent 时限（分钟）<input name="agentTimeoutMinutes" type="number" min="1" max="240" value="30" required></label><label>单项测试时限（秒）<input name="testTimeoutSeconds" type="number" min="5" max="3600" value="120" required></label></div></details>
         <div class="create-note">先生成拆解预览。缺少必要信息时会提问；人工确认前不会启动开发。源码使用独立 Git 仓库，步骤记录保存在 SQLite。</div>
-        <div id="create-error" class="form-error" role="alert"></div><div class="dialog-footer"><button type="button" class="secondary" id="back-host">上一步：宿主</button><button type="submit" class="primary">生成拆解预览</button></div>
+        <div id="create-error" class="form-error" role="alert"></div><div class="dialog-footer"><button type="button" class="secondary" id="back-host">管理全局宿主</button><button type="submit" class="primary">生成拆解预览</button></div>
       </form>
     </section>
-    <p id="host-error" class="form-error" role="alert"></p>
   </dialog>
   <dialog id="run-dialog" class="run-dialog"><div class="dialog-header"><div><h2 id="run-title">执行记录</h2><p id="run-meta"></p></div><button class="icon-button" data-action="close-run" aria-label="关闭">×</button></div><h3>输入</h3><pre id="run-input"></pre><h3>输出</h3><pre id="run-output"></pre></dialog>
   <div id="toast" class="toast" role="status" hidden></div>

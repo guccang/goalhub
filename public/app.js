@@ -178,7 +178,9 @@ async function selectProject(id) {
 
 // action 执行用户主动触发的项目操作。
 async function action(name) {
-  if (name === 'new' || name === 'host-setup') { await setup.open(); return; }
+  if (name === 'new') { await setup.open(); return; }
+  if (name === 'host-setup') { await setup.openHost(); return; }
+  if (name === 'close-host') { setup.closeHost(); return; }
   if (name === 'close-create') { $('#create-dialog').close(); return; }
   if (name === 'close-run') { $('#run-dialog').close(); return; }
   if (name === 'toggle-goal') { const clamped = $('#goal-text').classList.toggle('clamped'); $('[data-action="toggle-goal"]').textContent = clamped ? '展开详情' : '收起详情'; return; }

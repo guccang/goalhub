@@ -191,6 +191,11 @@ test('HTTP 接口可创建查询项目并拒绝跨源和无效输入', async (t)
   const created = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'HTTP 项目', goal: '测试保存目标', autoStart: false, hostTestId: probe.id }) });
   assert.equal(created.status, 201);
   const value = await created.json(); assert.equal(value.status, 'paused');
+  // 同一份全局宿主测试可被多个目标复用，创建目标不修改配置或触发新探测。
+  const another = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '复用全局宿主', goal: '第二个独立目标', autoStart: false, hostTestId: probe.id }) });
+  assert.equal(another.status, 201); assert.equal((await another.json()).settings.hostTestId, probe.id);
+  assert.equal(f.counts.probe, 1); assert.equal(server.hostSetup.profile().revision, probe.revision);
+
   const forbidden = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' }, body: '{}' });
   assert.equal(forbidden.status, 403);
   const invalid = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'x', goal: 'x', hostTestId: probe.id, settings: { evaluationMinutes: -1 } }) });
