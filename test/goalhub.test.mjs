@@ -819,3 +819,48 @@ test('办公室展示选项持久化、隔离项目并校验参数', async t => 
   assert.equal(list.find(row => row.id === f.project.id).office.projectId, f.project.id);
   assert.equal((await fetch(`${base}/office-card.html`)).status, 200);
 });
+
+// 重复原始输出不进入下一轮提示词，但必要需求、问答和失败证据完整可达。
+test('上下文去重保留当前目标与阻断，历史交付不作为当前覆盖', t => {
+  const f = fixture(t), id = f.project.id;
+  f.store.plan(id, plan);
+  f.store.ask(id, ['真正缺少的外部凭据？']);
+  f.store.instruction(id, '用户明确要求保留键盘操作');
+  f.store.event(id, 'agent.output', '重复工具日志'.repeat(20000));
+  f.store.check(f.store.checks(id)[0].id, 'failed', '失败原因：计算结果错误');
+  const text = f.orchestrator.context(id), context = JSON.parse(text);
+  assert.equal(context.goal, f.store.project(id).goal);
+  assert.equal(context.questions[0].prompt, '真正缺少的外部凭据？');
+  assert.equal(context.instructions[0].content, '用户明确要求保留键盘操作');
+  assert.match(text, /失败原因：计算结果错误/); assert.doesNotMatch(text, /重复工具日志/);
+  assert.equal(context.delivery.configSource, 'repository'); assert.equal(context.delivery.savedConfig, null);
+  assert.ok(text.length < 6000, `小任务上下文过大：${text.length}`);
+});
+
+// 上下文较短的会话继续复用；达到轮数或容量阈值时仅更换宿主会话，不删除项目证据。
+test('长员工会话自动换新，短会话继续复用且保留历史证据', t => {
+  const f = fixture(t), id = f.project.id, key = 'test-key';
+  for (let index = 0; index < 4; index++) {
+    const run = f.store.beginRun(id, 'developer', '已持久化的任务');
+    f.store.db.prepare('UPDATE runs SET config_key=? WHERE id=?').run(key, run);
+    f.store.session(run, 'long-session'); f.store.finishRun(run, 'completed', '结果');
+    assert.equal(f.store.employeeSession(id, 'developer', key), index < 3 ? 'long-session' : '');
+  }
+  const fresh = f.store.beginRun(id, 'developer', '新会话');
+  f.store.db.prepare('UPDATE runs SET config_key=? WHERE id=?').run(key, fresh);
+  f.store.session(fresh, 'fresh-session');
+  assert.equal(f.store.employeeSession(id, 'developer', key), 'fresh-session');
+  f.store.telemetry(fresh, { context: { window: 200000, used: 48000 } });
+  assert.equal(f.store.employeeSession(id, 'developer', key), '');
+  assert.equal(f.store.run(fresh).input, '新会话');
+});
+
+// 首次常规重试直接继续当前员工；不为相同修复额外发起负责人模型调用。
+test('员工首次可修复重试沿用分配，仍需真实测试和最终验收', async t => {
+  const f = fixture(t, { developer: ({ count }) => count === 1 ? { status: 'retry', summary: '已定位错误，继续修复', questions: [] } : undefined });
+  f.store.plan(f.project.id, { ...plan, tasks: plan.tasks.map(task => ({ ...task, assignee: 'developer' })) });
+  f.orchestrator.start(f.project.id); await f.orchestrator.controls.get(f.project.id).promise;
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.counts.developer, 2); assert.equal(f.counts.coordinator, 0);
+  assert.equal(f.counts.final, 1); assert.ok(f.counts.test > 0);
+});

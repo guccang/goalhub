@@ -157,7 +157,7 @@ function renderQuestions() {
   if (questionsKey === key) return;
   questionsKey = key;
   $('#question-panel').hidden = !pending.length;
-  $('#question-panel').innerHTML = pending.length ? `<h2>需要你补充信息</h2><p>回答后会自动继续，已有进度和原目标会保留。</p><form id="answer-form">${pending.map((question, index) => `<label>${index + 1}. ${escape(question.prompt)}<textarea name="${question.id}" required maxlength="10000" rows="2" placeholder="填写回答"></textarea></label>`).join('')}<button class="primary" type="submit">提交回答并继续</button>${promptLink('answers')}</form>` : '';
+  $('#question-panel').innerHTML = pending.length ? `<h2>需要你补充信息</h2><p>${escape(project.summary)}</p><p>回答后会自动继续，已有进度和原目标会保留。</p><form id="answer-form">${pending.map((question, index) => `<label>${index + 1}. ${escape(question.prompt)}<textarea name="${question.id}" required maxlength="10000" rows="2" placeholder="填写回答"></textarea></label>`).join('')}<button class="primary" type="submit">提交回答并继续</button>${promptLink('answers')}</form>` : '';
 }
 
 // renderProject 更新任务与证据区域，保留用户打开的测试详情。

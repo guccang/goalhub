@@ -102,7 +102,7 @@ test('占用端口不会被终止，HTTP 500 不会被判定为可预览', async
   await assert.rejects(f.manager.prepare(f.project.id, f.paths.work), /未就绪/);
   await assert.rejects(fetch(`http://127.0.0.1:${port}`));
   const server = createServer(); await new Promise(resolve => server.listen(port, '127.0.0.1', resolve));
-  try { await assert.rejects(f.manager.prepare(f.project.id, f.paths.work), /占用/); assert.equal(server.listening, true); }
+  try { await assert.rejects(f.manager.prepare(f.project.id, f.paths.work), /未就绪/); assert.match(f.manager.snapshot(f.project.id).release.log, /自动使用/); assert.equal(server.listening, true); }
   finally { await new Promise(resolve => server.close(resolve)); }
 });
 
@@ -130,4 +130,24 @@ test('交付配置拒绝路径穿越、绝对路径、非安装包和错误端�
   for (const path of ['../secret.exe', 'C:\\secret.exe', '/tmp/secret.exe', '.git/config.exe', 'dist/app.txt']) assert.throws(() => validateDelivery({ kind: 'desktop', build: 'node build.mjs', verify: 'node verify.mjs', artifacts: [path], instructions: '说明' }));
   assert.throws(() => validateDelivery({ kind: 'android', build: 'build', verify: 'verify', artifacts: ['dist/app.aab'], instructions: '说明' }));
   assert.throws(() => validateDelivery({ kind: 'web', build: 'build', preview: 'serve --port {port}', port: 80, instructions: '说明' }));
+});
+
+// 构建验证自行避开被占用端口，历史配置不得伪装成人工覆盖。
+test('旧交付与人工设置明确分离，验证端口冲突不触发员工修复', async t => {
+  const port = await unusedPort(), f = await fixture(t, { kind: 'web', build: 'node build.mjs', preview: 'node serve.mjs {port} 127.0.0.1', port, instructions: '预览计算器' });
+  const occupied = createServer(); await new Promise(resolve => occupied.listen(port, '127.0.0.1', resolve));
+  try {
+    const id = await f.manager.prepare(f.project.id, f.paths.work), state = f.manager.snapshot(f.project.id);
+    assert.equal(state.configSource, 'repository'); assert.equal(state.config, null);
+    assert.equal(state.release.config.port, port); assert.notEqual(state.release.port, port);
+    assert.equal(state.release.status, 'verified'); assert.equal(occupied.listening, true);
+    f.manager.publish(id);
+    await assert.rejects(f.manager.startPreview(id, port), /EADDRINUSE/);
+    assert.equal(occupied.listening, true);
+    f.store.saveDelivery(f.project.id, { kind: 'source', instructions: '人工设置' });
+    assert.equal(f.manager.snapshot(f.project.id).configSource, 'saved');
+    assert.equal(f.manager.snapshot(f.project.id).config.kind, 'source');
+    f.store.saveDelivery(f.project.id, undefined);
+    assert.equal(f.manager.snapshot(f.project.id).config, null);
+  } finally { await new Promise(resolve => occupied.close(resolve)); }
 });

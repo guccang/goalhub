@@ -52,7 +52,7 @@ export class DeliveryPanel {
   // open 复制项目设置或最近使用的仓库配置，未保存编辑只存在于当前表单。
   open(project) {
     this.editProject = project.id;
-    const saved = project.settings.delivery || project.delivery?.config;
+    const saved = project.settings.delivery || project.delivery?.release?.config;
     const config = saved?.kind ? saved : { kind: 'web', port: 4173 };
     for (const name of ['kind', 'build', 'verify', 'preview', 'port', 'instructions']) this.form.elements[name].value = config[name] ?? '';
     this.form.elements.artifacts.value = (config.artifacts || []).join('\n');
