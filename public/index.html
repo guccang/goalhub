@@ -1,0 +1,67 @@
+<!doctype html>
+<!-- 本文件定义目标执行工作台、创建表单和完整轮次记录对话框。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#182d49">
+  <title>GoalHub · 目标执行工作台</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="GoalHub 首页"><span class="brand-mark">g<span></span></span><span>GoalHub<small>目标执行工作台</small></span></a>
+    <button class="primary new-button" data-action="new"><span aria-hidden="true">＋</span> 新建目标</button>
+    <div class="nav-label">我的项目 <span id="project-count">0</span></div>
+    <nav id="project-list" aria-label="项目列表"></nav>
+    <div class="sidebar-bottom"><span class="connection-dot" id="connection-dot"></span><span id="connection">连接中</span><small>源码与执行记录保存在本机</small></div>
+  </aside>
+  <main id="workspace">
+    <div id="empty" class="empty-workspace">
+      <div class="empty-visual" aria-hidden="true"><span class="goal-ring">◎</span><div class="trail"><i></i><i></i><i></i></div><span class="finish-mark">✓</span></div>
+      <p class="intro-note">从想法，到经过验证的结果</p>
+      <h1>写下目标，<br>让执行持续向前。</h1>
+      <p class="intro-copy">将目标拆成可执行的任务。Agent 持续开发，定时检查进度，并用实际测试确认完成。</p>
+      <button class="primary" data-action="new">创建第一个目标</button>
+      <div class="empty-process"><span>明确目标</span><b>›</b><span>拆解与开发</span><b>›</b><span>评估与修复</span><b>›</b><span>测试验收</span></div>
+    </div>
+    <section id="project" hidden>
+      <header class="project-header"><div><div class="breadcrumb">我的项目 <span>/</span> 执行工作台</div><h1 id="project-title"></h1><div class="header-meta"><span id="project-status"></span><span id="project-created"></span></div></div><div class="header-actions" id="project-actions"></div></header>
+      <div class="project-body">
+        <div class="main-column">
+          <section class="goal-section"><div class="section-heading"><h2>目标</h2><button class="text-button" data-action="toggle-goal">展开详情</button></div><p id="goal-text" class="goal-text clamped"></p><div id="pipeline" class="pipeline"></div></section>
+          <section id="question-panel" class="question-panel" hidden></section>
+          <div id="summary" class="summary" aria-live="polite"></div>
+          <div class="tab-bar" role="tablist" aria-label="项目内容"><button id="tab-tasks" role="tab" aria-selected="true" data-tab="tasks">执行任务 <span id="task-count"></span></button><button id="tab-activity" role="tab" aria-selected="false" data-tab="activity">输入与输出</button></div>
+          <section id="tasks-view" role="tabpanel" aria-labelledby="tab-tasks"><div id="task-list"></div></section>
+          <section id="activity-view" role="tabpanel" aria-labelledby="tab-activity" hidden>
+            <div class="record-heading"><h2>Agent 轮次</h2><span>点击查看完整输入与输出</span></div><div id="run-list"></div>
+            <div class="record-heading"><h2>步骤记录</h2><span>SQLite 持久化</span></div>
+            <form id="log-search" class="log-search"><input name="search" placeholder="搜索输入、输出或步骤内容" aria-label="搜索步骤记录"><select name="kind" aria-label="事件类型"><option value="">全部类型</option><option value="test.failed">测试失败</option><option value="evaluation.result">定时评估</option><option value="input.answer">用户回答</option><option value="git.command">Git 命令</option><option value="execution.retry">修复重试</option></select><button type="submit" class="secondary">查询</button></form>
+            <button class="text-button" data-action="older" id="older-events">加载更早记录</button><div id="event-list"></div>
+          </section>
+        </div>
+        <aside class="inspector">
+          <section class="evaluation-panel"><div class="section-heading"><h2><span class="radar" aria-hidden="true">◉</span> 进度评估</h2><span id="evaluation-state"></span></div><p id="evaluation-copy"></p><div class="next-evaluation"><span>下次检查</span><strong id="next-evaluation">—</strong></div><button class="secondary full-width" data-action="evaluate" id="evaluate-button">立即评估</button><div id="last-evaluation" class="last-evaluation"></div></section>
+          <section class="inspector-section"><div class="section-heading"><h2>测试验收</h2><span id="check-count" class="subtle"></span></div><div id="check-list"></div></section>
+          <section class="inspector-section"><div class="section-heading"><h2>源码版本</h2><span class="branch-name">⑂ main</span></div><div id="commit-list"></div><details class="repo-path"><summary>查看仓库位置</summary><code id="repo-path"></code></details></section>
+          <section class="inspector-section"><h2>运行设置</h2><dl id="settings-list" class="settings-list"></dl></section>
+        </aside>
+      </div>
+    </section>
+  </main>
+  <dialog id="create-dialog" class="create-dialog">
+    <form id="create-form"><div class="dialog-header"><div><h2>新建目标</h2><p>描述你希望交付的结果，Agent 将制定任务与验收计划。</p></div><button type="button" class="icon-button" data-action="close-create" aria-label="关闭">×</button></div>
+      <label>项目名称<input name="name" required maxlength="100" placeholder="例如：团队知识库" autocomplete="off"></label>
+      <label>目标与完成条件<textarea name="goal" required maxlength="30000" rows="6" placeholder="要解决什么问题？需要哪些功能？什么结果代表完成？&#10;&#10;例如：开发一个本地 Markdown 知识库，支持新建、编辑、标签和全文搜索；数据重启后保留，并用自动化测试验证核心流程。"></textarea></label>
+      <div class="form-grid"><label>Agent 宿主<select name="hostType"><option value="codex">Codex</option><option value="claudecode">Claude Code</option><option value="deepseek-harness">DeepSeek Harness</option><option value="opencode">OpenCode</option></select></label><label>评估间隔<div class="input-unit"><input name="evaluationMinutes" type="number" min="0.1" max="1440" step="0.1" value="5" required><span>分钟</span></div></label></div>
+      <details class="advanced"><summary>模型与执行时限</summary><label>模型名称<input name="model" maxlength="150" placeholder="留空使用宿主默认模型"></label><div class="form-grid"><label>单轮 Agent 时限（分钟）<input name="agentTimeoutMinutes" type="number" min="1" max="240" value="30" required></label><label>单项测试时限（秒）<input name="testTimeoutSeconds" type="number" min="5" max="3600" value="120" required></label></div></details>
+      <div class="create-note">将创建独立 Git 仓库。目标、输入输出和每一步执行都将被记录。</div><div id="create-error" class="form-error" role="alert"></div><div class="dialog-footer"><button type="button" class="secondary" data-action="close-create">取消</button><button type="submit" class="primary">创建并开始执行</button></div>
+    </form>
+  </dialog>
+  <dialog id="run-dialog" class="run-dialog"><div class="dialog-header"><div><h2 id="run-title">执行记录</h2><p id="run-meta"></p></div><button class="icon-button" data-action="close-run" aria-label="关闭">×</button></div><h3>输入</h3><pre id="run-input"></pre><h3>输出</h3><pre id="run-output"></pre></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

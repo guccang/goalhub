@@ -1,0 +1,28 @@
+# GoalHub
+
+本地目标执行工作台。输入目标后，规划 Agent 生成小任务和验收项目；执行 Agent 在每个项目 Git 仓库中逐项开发；评估 Agent 按设定间隔检查进度、修复阻断并决定下一步。所有轮次的输入、输出和事件保存在 SQLite。
+
+## 启动
+
+需要 Node.js 24+、Git、已登录的 Codex CLI，以及同机的 `agent-runtime`。
+
+```powershell
+$env:AGENT_RUNTIME_PATH='F:\Documents\game-engine\tools\agent-runtime\index.mjs'
+npm start
+```
+
+访问 `http://127.0.0.1:3210`。可设置 `PORT`、`GOALHUB_DATA_DIR` 和 `AGENT_RUNTIME_PATH`。默认数据目录为项目下 `data/`。
+
+## 执行规则
+
+- 每个目标在 `data/projects/<id>` 创建独立 Git 仓库，开发 Agent 使用 `data/worktrees/<id>`，评估 Agent 使用一次性的隔离 worktree。
+- 规划 JSON 必须包含可执行任务和可验证的验收项。规划判定需要用户资料时会暂停，提交回答后沿用原目标重新规划。
+- 执行 Agent 一轮只处理当前任务；评估 Agent 定时检查阻断并提出修复建议。调度器在开发目录中实际运行规划列出的验收命令；全部测试和最终评估通过后才标记完成。
+- 输入、最终输出、流事件、会话 ID、任务状态、评估结论均写入 SQLite。页面支持查看步骤历史。
+- 服务重启后，将未完成的运行恢复为暂停状态，用户可继续执行；不会默默重复未确认的 CLI 操作。
+- 开发时复用同一项目的 Agent 会话；各次评估使用独立会话。源码检查点自动合并到项目 main；完成后移除开发 worktree。
+- 连续三轮无法推进会记录阻断原因，用户处理外部问题后可继续。Agent 单轮默认 30 分钟、测试单项默认 120 秒，可在创建目标时调整。
+
+页面结构、状态机、数据库和并发策略见 [设计方案](docs/design.md)。执行 `npm test` 验证调度、持久化与接口；测试使用模拟宿主，不消耗模型额度。
+
+该服务仅绑定回环地址，面向本机个人使用。运行 Agent 和验收命令会修改项目文件，请只在可信机器上启动。
