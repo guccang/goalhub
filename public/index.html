@@ -37,7 +37,8 @@
       <div class="empty-process"><span>明确目标</span><b>›</b><span>拆解与开发</span><b>›</b><span>评估与修复</span><b>›</b><span>测试验收</span></div>
     </div>
     <section id="project" hidden>
-      <header class="project-header"><div><div class="breadcrumb">我的项目 <span>/</span> 执行工作台</div><h1 id="project-title"></h1><div class="header-meta"><span id="project-status"></span><span id="project-created"></span></div></div><div class="header-actions"><div id="project-actions"></div><a href="#prompt-preview" class="prompt-link" data-prompt="project" aria-haspopup="dialog">预览提示词</a></div></header><p id="project-progress-summary" class="project-progress-summary" aria-live="polite"></p>
+      <header class="project-header"><div><div class="breadcrumb">我的项目 <span>/</span> 执行工作台</div><h1 id="project-title"></h1><div class="header-meta"><span id="project-status"></span><span id="project-created"></span></div></div><div class="header-actions"><button class="secondary" data-panel="delivery-summary-dialog">预览与交付</button><div class="header-actions" id="project-actions"></div><a href="#prompt-preview" class="prompt-link" data-prompt="project" aria-haspopup="dialog">预览提示词</a></div></header><p id="project-progress-summary" class="project-progress-summary" aria-live="polite"></p>
+      
       <section id="office-view" class="office-view" aria-label="像素办公室">
         <div class="office-main">
           <div class="office-scene-card">
@@ -114,7 +115,18 @@
     <div class="team-copy"><select id="copy-team-source" aria-label="复制团队的来源项目"></select><button type="button" class="secondary" id="copy-team">复制团队到草稿</button></div><p id="team-leader-note" class="setup-note" role="status"></p>
     <div class="team-layout"><aside class="team-roster"><div id="employee-list" aria-label="项目员工"></div><button type="button" class="secondary" id="add-employee">添加员工</button></aside><section id="employee-detail" aria-label="员工配置"></section></div>
     <p id="employee-error" class="form-error" role="alert"></p><div class="dialog-footer"><span class="setup-note">暂停项目后可保存配置。</span><button type="submit" class="primary">保存项目团队</button></div></fieldset></form></dialog>
-  <dialog id="god-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><div><h2>God · GoalHub 管理者</h2><p>为各项目搭建团队，配置独立保存。</p></div><button type="button" class="icon-button" data-close-god aria-label="关闭 God 配置">×</button></div>
+  <dialog id="delivery-summary-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><h2>预览与交付</h2><button class="icon-button" data-close-panel="delivery-summary-dialog" aria-label="关闭预览与交付">×</button></div><section id="delivery-panel" class="delivery-panel" aria-label="项目交付"></section></dialog>
+<dialog id="delivery-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><h2>项目交付设置</h2><button type="button" class="icon-button" data-close-delivery aria-label="关闭交付设置">×</button></div>
+<p class="setup-note">开发员工会在仓库中生成交付配置，也可在这里覆盖。构建在独立源码快照执行；命令需包含安装依赖步骤。Web 预览仅在本机提供服务。</p>
+<form><fieldset class="god-fields"><label>交付类型<select name="kind"><option value="web">Web 预览</option><option value="desktop">桌面安装包 / 便携包</option><option value="android">Android APK</option><option value="ios">iOS IPA</option><option value="source">源码 / 文档</option></select></label>
+<label data-delivery-kind="web desktop android ios">构建命令<textarea name="build" rows="2" maxlength="8000" placeholder="例如：npm run build:delivery（脚本负责安装依赖并构建）"></textarea></label>
+<label data-delivery-kind="web desktop android ios">交付验证命令<textarea name="verify" rows="2" maxlength="8000" placeholder="桌面与 App 必填：验证安装包可安装或运行"></textarea></label>
+<label data-delivery-kind="web">预览启动命令<input name="preview" maxlength="8000" placeholder="npm run preview -- --host 127.0.0.1 --port {port} --strictPort"></label>
+<label data-delivery-kind="web">默认端口<input name="port" type="number" min="1024" max="65535" value="4173"></label>
+<label data-delivery-kind="desktop android ios">安装包路径（每行一个，仓库相对路径）<textarea name="artifacts" rows="3" placeholder="dist/Setup.exe 或 build/app/outputs/flutter-apk/app-release.apk"></textarea></label>
+<label>使用与安装说明<textarea name="instructions" rows="3" maxlength="8000" placeholder="目标平台、使用方法、签名与设备要求；源码项目说明无需安装的原因。"></textarea></label>
+<p id="delivery-error" class="form-error" role="alert"></p><div class="dialog-footer"><button type="button" class="secondary" id="delivery-use-file">使用仓库配置</button><button class="primary" type="submit">保存交付设置</button></div></fieldset></form></dialog>
+<dialog id="god-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><div><h2>God · GoalHub 管理者</h2><p>为各项目搭建团队，配置独立保存。</p></div><button type="button" class="icon-button" data-close-god aria-label="关闭 God 配置">×</button></div>
     <p class="setup-note">首次使用时以全局宿主初始化，之后可独立调整。认证沿用对应宿主的全局设置。God 为项目选出负责人，项目负责人负责后续规划和执行。</p>
     <p id="god-state" role="status"></p><form><fieldset class="god-fields"><div class="employee-grid">
     <label>执行宿主<select name="hostType"><option value="codex">Codex</option><option value="claudecode">Claude Code</option><option value="deepseek-harness">DeepSeek Harness</option><option value="opencode">OpenCode</option></select></label>

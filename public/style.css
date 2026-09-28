@@ -1352,6 +1352,10 @@ select:focus {
 /* 全局管理者沿用配置表单布局，生成中由原生字段组统一锁定。 */
 .god-fields{border:0;padding:0;margin:0;min-width:0}.god-fields:disabled{opacity:.65}#god-history{padding-left:20px;overflow-wrap:anywhere}
 
+/* 交付入口展示真实预览、安装包及日志，长校验值可换行。 */
+.delivery-panel{background:#fff;border:1px solid #dce3ee;border-radius:12px;padding:18px;margin:16px 0}.delivery-heading,.delivery-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.delivery-heading h2{margin:0;font-size:18px}.delivery-panel p{white-space:pre-wrap}.delivery-actions label{max-width:140px}.delivery-files small{display:block;overflow-wrap:anywhere;color:#60758e}.delivery-log{margin-top:14px}.delivery-log pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.delivery-actions a{display:inline-block;text-decoration:none}
+
+#delivery-summary-dialog .delivery-panel{border:0;padding:0;margin:0}#delivery-summary-dialog .delivery-heading h2{font-size:16px}
 /* 提示词仅通过链接打开独立弹窗，长文本自动换行以适配窄屏。 */
 .prompt-link { color:#3659bf; font-size:14px; text-decoration:underline; text-underline-offset:3px; cursor:pointer; display:inline-block; padding:6px 0; }
 .prompt-link:hover { color:#203c90; }

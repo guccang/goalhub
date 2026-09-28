@@ -14,6 +14,7 @@ const { installPromptPreviews, promptLink } = await import('./prompt-preview.js'
 const { ProjectsPanel } = await import('./projects.js');
 const { SetupFlow } = await import('./setup.js');
 const { OfficeView } = await import('./office-view.js');
+const { DeliveryPanel } = await import('./delivery.js');
 const { GodPanel } = await import('./god.js');
 const { EmployeeManager } = await import('./employees.js');
 // $ 获取工作台内的一个 DOM 元素。
@@ -38,6 +39,7 @@ const panels = new ProjectsPanel({ api, selectProject, selectGoal, refresh, toas
 
 // selectGoal 只切换查看目标，不改变项目当前执行目标。
 async function selectGoal(id) { selectedGoal = id; historyMode = false; eventProject = ''; questionsKey = ''; await refresh(); }
+const deliveryPanel = new DeliveryPanel({ api, refresh, toast });
 const god = new GodPanel({ api, toast });
 const employees = new EmployeeManager({ api, refresh, toast });
 installPromptPreviews({ api, getProject: () => project, employees, setup });
@@ -114,7 +116,7 @@ function renderProject() {
   $('#project-tools').hidden = !project;
   $('#empty').hidden = !!project; $('#project').hidden = !project;
   if (!project) { office.setVisible(false); return; }
-  panels.render(project); setup.syncProject(project);
+  panels.render(project); setup.syncProject(project); deliveryPanel.render(project);
   office.update(project, busy || !!project.historical || !project.active_goal_id); office.setVisible(true);
   $('#office-view').hidden = false;
   if (recordsOwner) recordsOwner = project.office?.actors.find(actor => actor.id === recordsOwner.id) || null;
@@ -225,7 +227,7 @@ async function refresh() {
 // selectProject 清理上一个项目的筛选和表单状态。
 async function selectProject(id) {
   recordsOwner = null;
-  for (const id of ['sidebar', 'employee-panel', 'goal-dialog', 'usage-dialog', 'attention-dialog']) closePanel(id);
+  for (const id of ['sidebar', 'employee-panel', 'goal-dialog', 'usage-dialog', 'attention-dialog', 'delivery-summary-dialog', 'delivery-dialog']) closePanel(id);
   selectedGoal = ''; selected = id; localStorage.setItem('goalhub.project', id); questionsKey = ''; historyMode = false; events = []; search = ''; kind = '';
   $('#log-search').reset();
   const detail = await api(`/projects/${id}`);
