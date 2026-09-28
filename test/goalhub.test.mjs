@@ -1,4 +1,5 @@
 // 本文件通过真实 SQLite/Git 和可控模拟宿主验证持续执行、失败修复、暂停、问答与 HTTP 边界。
+import { effectiveLanguage, validateLanguage } from '../lib/languages.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
@@ -427,4 +428,48 @@ test('员工管理接口拒绝运行中变更并在暂停后持久化', async t 
   assert.equal((await fetch(url, request)).status, 200);
   assert.equal((await (await fetch(url)).json()).employees[1].model, 'project-specific');
   assert.ok(f.store.events(f.project.id).some(event => event.kind === 'team.updated'));
+});
+
+// 验证继承、覆盖、持久化、运行快照与提示词使用同一套语言规则。
+test('项目语言和员工母语分别保存，真实调度输入携带有效语言', async t => {
+  const f = fixture(t), employees = team(f.project);
+  assert.equal(effectiveLanguage(f.project), 'zh-CN');
+  employees[1].nativeLanguage = 'ja'; employees[3].nativeLanguage = 'ko';
+  f.store.saveEmployees(f.project.id, validateTeam(employees), 'en');
+  const project = f.store.project(f.project.id);
+  assert.equal(effectiveLanguage(project, employees[0]), 'en');
+  assert.equal(effectiveLanguage(project, employees[1]), 'ja');
+  const before = assignEmployee(f.store, project, 'developer').configKey;
+  f.store.saveEmployees(f.project.id, validateTeam(employees), 'zh-CN');
+  assert.notEqual(assignEmployee(f.store, f.store.project(f.project.id), 'developer').configKey, before);
+  f.store.saveEmployees(f.project.id, validateTeam(employees), 'en');
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '语言配置执行未结束');
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.match(f.calls.find(call => call.role === 'planner').input, /English \(en\)/);
+  assert.match(f.calls.find(call => call.role === 'developer').input, /日本語 \(ja\)/);
+  assert.match(f.calls.find(call => call.role === 'final').input, /한국어 \(ko\)/);
+  assert.match(f.calls.find(call => call.role === 'developer').input, /JSON 字段名/);
+  const runs = f.store.detail(f.project.id).runs;
+  assert.equal(JSON.parse(f.store.run(runs.find(run => run.role === 'developer').id).executor).effectiveLanguage, 'ja');
+  const snapshot = buildOfficeSnapshot(f.store, f.orchestrator, f.project.id);
+  assert.equal(snapshot.actors.find(actor => actor.id === 'developer').effectiveLanguage, 'ja');
+  assert.throws(() => validateTeam([{ ...employees[0], nativeLanguage: 'invalid' }]), /语言/);
+  assert.throws(() => validateLanguage(''), /语言/);
+});
+// HTTP 配置只允许支持的语言，并保证非法输入不会部分修改员工。
+test('语言接口保存四种语言且拒绝非法配置', async t => {
+  const f = fixture(t), server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const url = `http://127.0.0.1:${server.address().port}/api/projects/${f.project.id}/employees`;
+  const original = await (await fetch(url)).json();
+  assert.equal(original.language, 'zh-CN'); assert.equal(Object.keys(original.languages).length, 4);
+  for (const language of ['en', 'ja', 'ko', 'zh-CN']) {
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employees: original.employees, language }) });
+    assert.equal(response.status, 200);
+    assert.equal((await (await fetch(url)).json()).language, language);
+  }
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employees: [], language: 'xx' }) });
+  assert.equal(response.status, 400); assert.equal(team(f.store.project(f.project.id)).length, 4);
 });

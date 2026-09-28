@@ -144,7 +144,7 @@ export class SetupFlow {
       const values = Object.fromEntries(new FormData(form));
       const hostTestId = this.state.tests.find(test => test.revision === this.state.revision).id;
       const configureTeam = values.configureTeam === 'on';
-      const created = await this.api('/projects', { name: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam, settings: { confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
+      const created = await this.api('/projects', { name: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
       this.find('#create-dialog').close(); form.reset(); button.textContent = '生成拆解预览'; await this.selectProject(created.id); await this.refresh();
       if (configureTeam) { document.querySelector('#mode-office').click(); document.querySelector('#manage-employees').click(); this.toast('请配置员工，保存后点击继续执行开始规划'); }
       else this.toast('正在生成拆解预览');

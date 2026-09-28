@@ -216,7 +216,7 @@ document.addEventListener('click', async (event) => {
       // 历史轮次展示当时的执行配置，避免员工改名或换模型后混淆记录。
       const executor = run.executor ? JSON.parse(run.executor) : null;
       $('#run-title').textContent = roles[run.role] || run.role;
-      $('#run-meta').textContent = `${labels[run.status] || run.status} · ${date(run.created_at)}${executor ? ` · 员工 ${executor.name} · ${hostLabels[executor.hostType] || executor.hostType} · 模型 ${executor.model || '默认'} · 思考 ${executor.reasoningEffort || '默认'}` : ''}${run.session_id ? ` · 会话 ${run.session_id}` : ''}`;
+      $('#run-meta').textContent = `${labels[run.status] || run.status} · ${date(run.created_at)}${executor ? ` · 员工 ${executor.name} · ${hostLabels[executor.hostType] || executor.hostType} · 模型 ${executor.model || '默认'} · 思考 ${executor.reasoningEffort || '默认'} · 语言 ${executor.effectiveLanguage || '历史未记录'}` : ''}${run.session_id ? ` · 会话 ${run.session_id}` : ''}`;
       $('#run-input').textContent = run.input; $('#run-output').textContent = run.output || '运行中，流事件可在步骤记录中查询。';
       $('#run-dialog').showModal();
     }

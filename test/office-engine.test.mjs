@@ -1,4 +1,5 @@
 // 本文件验证原版地图完整性、真实任务桥接与寻路边界，避免只检查截图外观。
+import { renderSpeech, speechToken } from '../office-engine/speech.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -39,4 +40,26 @@ test('原版 BFS 避开碰撞图块并拒绝不可达目标', () => {
   const path = findPath(map, { x: 0, y: 0 }, { x: 4, y: 0 });
   assert.ok(path.some(point => point.y === 4)); assert.ok(path.every(point => map.isWalkable(point.x, point.y)));
   assert.equal(findPath(map, { x: 0, y: 0 }, { x: 2, y: 1 }), null);
+});
+
+// 气泡按说话员工选择语言，同一语义在混合母语对话中保持一致。
+test('四语气泡、插值与原始工作内容互不混淆', () => {
+  const greeting = speechToken('solo.coffee.0');
+  assert.equal(renderSpeech(greeting), '先喝杯咖啡');
+  assert.equal(renderSpeech(greeting, 'en'), 'Coffee first');
+  assert.equal(renderSpeech(greeting, 'ja'), 'まずはコーヒー');
+  assert.equal(renderSpeech(greeting, 'ko'), '먼저 커피 한 잔');
+  assert.equal(renderSpeech(speechToken('pair.0.0'), 'en'), 'Coffee?');
+  assert.equal(renderSpeech(speechToken('pair.0.1'), 'ja'), 'いいね、少し休もう。');
+  assert.match(renderSpeech(speechToken('office.suckUp.1', { done: 7 }), 'ko'), /7/);
+  assert.equal(renderSpeech('User-provided task title', 'ja'), 'User-provided task title');
+  const catalog = JSON.parse(readFileSync(new URL('../office-engine/speech.json', import.meta.url)));
+  // 递归检查各语言均具备中文目录中的内置台词，避免空白气泡。
+  function walk(value, path = '') {
+    if (typeof value === 'string') {
+      if (path === 'gpuError') return;
+      for (const language of ['en', 'ja', 'ko']) assert.ok(renderSpeech(speechToken(path), language), `${language}:${path}`);
+    } else for (const [key, child] of Object.entries(value)) walk(child, path ? `${path}.${key}` : key);
+  }
+  walk(catalog['zh-CN']);
 });

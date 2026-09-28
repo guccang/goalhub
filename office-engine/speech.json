@@ -1,0 +1,495 @@
+{
+  "zh-CN": {
+    "gpuError": "办公楼层丢失了 GPU 上下文。\n\n同时使用 GPU 的终端太多了。\n关闭几个智能体终端，或重启应用，即可恢复。",
+    "errand": {
+      "water": [
+        "给植物浇水 🌿",
+        "给植物们喝点水",
+        "它们长得真快"
+      ],
+      "window": [
+        "开窗透透气 🍃",
+        "一点新鲜空气",
+        "今天微风不错"
+      ],
+      "dispenser": [
+        "接点水喝 💧",
+        "补水时间",
+        "保持精神"
+      ],
+      "fridge": [
+        "冰箱里有什么好东西？",
+        "谁拿走了我的酸奶？",
+        "随便看看…"
+      ],
+      "shelf": [
+        "看看书架 📚",
+        "有什么新东西吗？",
+        "好东西真多"
+      ],
+      "bin": [
+        "把废纸清掉 🗑️",
+        "收拾桌子的日子",
+        "稍微整理一下"
+      ],
+      "smoke": [
+        "这层楼自己就能运转 🚬",
+        "老板休息一下。",
+        "思考人生 🚬",
+        "我宣布……休息一下"
+      ]
+    },
+    "suckUp": [
+      "{{godName}}，已经交付了 {{done}} 个任务。加薪吗？🥺",
+      "老板，这周完成了 {{done}} 个任务！",
+      "一如既往的好眼光，老板！",
+      "我正要去做那件事！",
+      "今天领带不错，{{godName}}",
+      "努力工作，老板！💪",
+      "史上最好的老板。真心话。"
+    ],
+    "gossip": [
+      "他到底写过代码没有？",
+      "又一个拖了一小时的「快速同步」…",
+      "「世界上最好的老板」——那个杯子是他自己买的",
+      "他把我的任务据为己有，说是他的主意",
+      "说真的，那股雪茄味…",
+      "他浇了那盆植物。就一盆。他自己的。",
+      "你听见了吗？「我宣布……休息一下」"
+    ],
+    "cheer": [
+      "完成！✔",
+      "漂亮",
+      "收工",
+      "上线 🚀",
+      "又搞定一个",
+      "拿下了",
+      "记入战绩"
+    ],
+    "mugs": {
+      "empty": "没有干净的杯子了…",
+      "brewing": "正在冲一杯新的 ☕",
+      "washing": "在洗杯子"
+    },
+    "activity": {
+      "waiting": "等待中",
+      "needsYou": "需要你",
+      "compacting": "正在压缩上下文",
+      "looping": "循环中——断路器已启动",
+      "runningFloor": "正在管理楼层",
+      "idle": "空闲",
+      "developer": "正在实现任务",
+      "planner": "正在制定计划",
+      "evaluator": "正在审查进度",
+      "final-review": "正在核对交付",
+      "success": "本轮已结束",
+      "paused": "进度已保存",
+      "blocked": "等待处理阻塞",
+      "error": "本轮执行失败",
+      "pin": "发布新任务",
+      "take": "领取任务",
+      "archive": "归档已完成任务",
+      "stuck": "这个任务遇到阻塞"
+    },
+    "solo": {
+      "coffee": [
+        "先喝杯咖啡",
+        "谁拿了我的杯子？",
+        "今天的咖啡不错"
+      ],
+      "vending": [
+        "来点零食",
+        "希望这次不卡住"
+      ],
+      "snack": [
+        "该休息一下了",
+        "还有饼干吗？"
+      ],
+      "table": [
+        "休息五分钟",
+        "看过今天的会议记录了吗？"
+      ]
+    },
+    "pair": [
+      [
+        "喝杯咖啡吗？",
+        "好呀，休息一下。",
+        "然后继续努力。",
+        "没问题！"
+      ],
+      [
+        "看过会议记录了吗？",
+        "看过了，写得很清楚。"
+      ]
+    ]
+  },
+  "en": {
+    "errand": {
+      "water": [
+        "Watering the plants",
+        "A drink for the plants",
+        "They grow so fast"
+      ],
+      "window": [
+        "Opening the window",
+        "Some fresh air",
+        "A lovely breeze today"
+      ],
+      "dispenser": [
+        "Getting some water",
+        "Time to hydrate",
+        "Staying refreshed"
+      ],
+      "fridge": [
+        "What is in the fridge?",
+        "Who took my yogurt?",
+        "Just looking…"
+      ],
+      "shelf": [
+        "Browsing the bookshelf",
+        "Anything new?",
+        "So much to read"
+      ],
+      "bin": [
+        "Clearing scrap paper",
+        "Desk cleanup day",
+        "Tidying up a little"
+      ],
+      "smoke": [
+        "The office can manage itself",
+        "The boss needs a break",
+        "Thinking about life",
+        "I declare… a break"
+      ]
+    },
+    "suckUp": [
+      "{{godName}}, I delivered {{done}} tasks. A raise?",
+      "Boss, {{done}} tasks finished this week!",
+      "Great judgment as always, boss!",
+      "I was just about to do that!",
+      "Nice tie today, {{godName}}",
+      "Working hard, boss!",
+      "Best boss ever. Honestly."
+    ],
+    "gossip": [
+      "Has he ever written code?",
+      "Another hour-long quick sync…",
+      "He bought that best-boss mug himself",
+      "He called my task his idea",
+      "That cigar smell, seriously…",
+      "He watered one plant. His own.",
+      "Did you hear? He declared a break."
+    ],
+    "cheer": [
+      "Done!",
+      "Nice",
+      "Wrapping up",
+      "Shipped!",
+      "Another one done",
+      "Nailed it",
+      "On the record"
+    ],
+    "mugs": {
+      "empty": "No clean mugs left…",
+      "brewing": "Brewing a fresh cup",
+      "washing": "Washing the mugs"
+    },
+    "activity": {
+      "waiting": "Waiting",
+      "needsYou": "Need your input",
+      "compacting": "Compacting context",
+      "looping": "Loop detected — stopped",
+      "runningFloor": "Managing the office",
+      "idle": "Idle",
+      "developer": "Implementing the task",
+      "planner": "Preparing the plan",
+      "evaluator": "Reviewing progress",
+      "final-review": "Checking delivery",
+      "success": "Round finished",
+      "paused": "Progress saved",
+      "blocked": "Waiting for help",
+      "error": "Run failed",
+      "pin": "Pinning a new task",
+      "take": "Taking my task",
+      "archive": "Filing a completed task",
+      "stuck": "This task is blocked"
+    },
+    "solo": {
+      "coffee": [
+        "Coffee first",
+        "Who took my mug?",
+        "Good coffee today"
+      ],
+      "vending": [
+        "Time for a snack",
+        "Please do not get stuck"
+      ],
+      "snack": [
+        "Time for a break",
+        "Any cookies left?"
+      ],
+      "table": [
+        "Five minutes off",
+        "Seen the meeting notes?"
+      ]
+    },
+    "pair": [
+      [
+        "Coffee?",
+        "Sure, a short break.",
+        "Then back to work.",
+        "Sounds good!"
+      ],
+      [
+        "Read the meeting notes?",
+        "Yes, very clear."
+      ]
+    ]
+  },
+  "ja": {
+    "errand": {
+      "water": [
+        "植物に水やり",
+        "植物にも水分補給",
+        "成長が早いね"
+      ],
+      "window": [
+        "窓を開けよう",
+        "新鮮な空気だ",
+        "今日はいい風"
+      ],
+      "dispenser": [
+        "水を飲もう",
+        "水分補給の時間",
+        "気分をリフレッシュ"
+      ],
+      "fridge": [
+        "冷蔵庫に何があるかな",
+        "私のヨーグルトは？",
+        "ちょっと見るだけ…"
+      ],
+      "shelf": [
+        "本棚を見てみよう",
+        "新しい本はあるかな",
+        "読みたい本がいっぱい"
+      ],
+      "bin": [
+        "紙くずを片付けよう",
+        "机を掃除する日",
+        "少し整理しよう"
+      ],
+      "smoke": [
+        "少し任せても大丈夫",
+        "上司も一休み",
+        "人生について考える",
+        "休憩を宣言します"
+      ]
+    },
+    "suckUp": [
+      "{{godName}}、{{done}}件完了です。昇給は？",
+      "今週は{{done}}件完了しました！",
+      "さすがの判断ですね！",
+      "今やろうとしていました！",
+      "素敵なネクタイですね、{{godName}}",
+      "頑張っています！",
+      "最高の上司です。本当に。"
+    ],
+    "gossip": [
+      "コードを書いたことあるのかな",
+      "短い打ち合わせがまた一時間…",
+      "最高の上司のマグは自分で買ったらしい",
+      "私の仕事が上司のアイデアになった",
+      "あの葉巻の匂いはちょっと…",
+      "自分の植物だけ水やりしていた",
+      "聞いた？休憩を宣言したって"
+    ],
+    "cheer": [
+      "完了！",
+      "いい感じ",
+      "お疲れさま",
+      "リリース！",
+      "また一つ完了",
+      "やったね",
+      "実績に追加"
+    ],
+    "mugs": {
+      "empty": "きれいなマグがない…",
+      "brewing": "コーヒーを淹れています",
+      "washing": "マグを洗っています"
+    },
+    "activity": {
+      "waiting": "待機中",
+      "needsYou": "回答が必要です",
+      "compacting": "コンテキストを圧縮中",
+      "looping": "ループを検出して停止",
+      "runningFloor": "オフィスを管理中",
+      "idle": "待機中",
+      "developer": "タスクを実装中",
+      "planner": "計画を作成中",
+      "evaluator": "進捗を確認中",
+      "final-review": "成果物を確認中",
+      "success": "今回の作業は終了",
+      "paused": "進捗を保存しました",
+      "blocked": "対応を待っています",
+      "error": "実行に失敗しました",
+      "pin": "新しいタスクを掲示",
+      "take": "タスクを引き受ける",
+      "archive": "完了したタスクを保管",
+      "stuck": "このタスクは停止中"
+    },
+    "solo": {
+      "coffee": [
+        "まずはコーヒー",
+        "私のマグはどこ？",
+        "今日のコーヒーはおいしい"
+      ],
+      "vending": [
+        "おやつにしよう",
+        "詰まらないでね"
+      ],
+      "snack": [
+        "休憩の時間だ",
+        "クッキーは残ってる？"
+      ],
+      "table": [
+        "五分だけ休もう",
+        "会議のメモを見た？"
+      ]
+    },
+    "pair": [
+      [
+        "コーヒーはいかが？",
+        "いいね、少し休もう。",
+        "それから仕事に戻ろう。",
+        "了解！"
+      ],
+      [
+        "会議のメモを読んだ？",
+        "うん、分かりやすかった。"
+      ]
+    ]
+  },
+  "ko": {
+    "errand": {
+      "water": [
+        "화분에 물 주기",
+        "식물도 물이 필요해",
+        "정말 빨리 자라네"
+      ],
+      "window": [
+        "창문을 열자",
+        "신선한 공기다",
+        "오늘 바람이 좋네"
+      ],
+      "dispenser": [
+        "물 좀 마시자",
+        "수분 보충 시간",
+        "기운을 내자"
+      ],
+      "fridge": [
+        "냉장고에 뭐가 있지?",
+        "내 요구르트 누가 가져갔지?",
+        "잠깐 구경만…"
+      ],
+      "shelf": [
+        "책장을 둘러보자",
+        "새로운 책이 있나?",
+        "읽을 책이 많네"
+      ],
+      "bin": [
+        "종이를 치우자",
+        "책상 청소하는 날",
+        "조금 정리하자"
+      ],
+      "smoke": [
+        "잠깐 맡겨도 되겠지",
+        "상사도 잠깐 휴식",
+        "인생을 생각하는 중",
+        "휴식을 선언합니다"
+      ]
+    },
+    "suckUp": [
+      "{{godName}}, {{done}}개 완료했습니다. 연봉 인상은요?",
+      "이번 주 {{done}}개 완료했습니다!",
+      "역시 훌륭한 판단이십니다!",
+      "막 하려던 참입니다!",
+      "넥타이가 멋지네요, {{godName}}",
+      "열심히 일하고 있습니다!",
+      "최고의 상사입니다. 진심이에요."
+    ],
+    "gossip": [
+      "코드를 써 본 적이 있을까?",
+      "짧은 회의가 또 한 시간…",
+      "최고의 상사 머그는 직접 샀대",
+      "내 일이 상사의 아이디어가 됐어",
+      "그 시가 냄새는 좀…",
+      "자기 화분에만 물을 줬어",
+      "들었어? 휴식을 선언했대"
+    ],
+    "cheer": [
+      "완료!",
+      "좋았어",
+      "마무리",
+      "출시!",
+      "하나 더 완료",
+      "해냈어",
+      "실적에 추가"
+    ],
+    "mugs": {
+      "empty": "깨끗한 머그가 없네…",
+      "brewing": "커피를 내리는 중",
+      "washing": "머그를 씻는 중"
+    },
+    "activity": {
+      "waiting": "대기 중",
+      "needsYou": "답변이 필요합니다",
+      "compacting": "컨텍스트 압축 중",
+      "looping": "반복 감지로 중지",
+      "runningFloor": "사무실 관리 중",
+      "idle": "대기 중",
+      "developer": "작업 구현 중",
+      "planner": "계획 작성 중",
+      "evaluator": "진행 상황 검토 중",
+      "final-review": "결과물 확인 중",
+      "success": "이번 작업 종료",
+      "paused": "진행 상황 저장됨",
+      "blocked": "도움을 기다리는 중",
+      "error": "실행 실패",
+      "pin": "새 작업 게시",
+      "take": "작업 가져오기",
+      "archive": "완료한 작업 보관",
+      "stuck": "이 작업이 막혔어요"
+    },
+    "solo": {
+      "coffee": [
+        "먼저 커피 한 잔",
+        "내 머그 어디 갔지?",
+        "오늘 커피 맛있네"
+      ],
+      "vending": [
+        "간식 먹을 시간",
+        "제발 걸리지 마"
+      ],
+      "snack": [
+        "잠깐 쉬자",
+        "쿠키 남았어?"
+      ],
+      "table": [
+        "오 분만 쉬자",
+        "회의 기록 봤어?"
+      ]
+    },
+    "pair": [
+      [
+        "커피 마실래?",
+        "좋아, 잠깐 쉬자.",
+        "그리고 다시 일하자.",
+        "좋아!"
+      ],
+      [
+        "회의 기록 읽었어?",
+        "응, 이해하기 쉬웠어."
+      ]
+    ]
+  }
+}

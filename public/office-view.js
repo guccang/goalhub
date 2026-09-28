@@ -131,7 +131,7 @@ export class OfficeView {
     const portrait = this.find('#office-portrait'); portrait.hidden = actor.kind === 'facility';
     if (!portrait.hidden) paintPortrait(portrait.getContext('2d'), actor.character, 2);
     const hosts = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
-    this.find('#office-agent-host').textContent = actor.kind === 'facility' ? '设施 · 本机测试进程' : `职位：${actor.title || actor.name} · 宿主：${hosts[actor.hostType] || actor.hostType} · 模型：${actor.model || '默认'} · 思考：${actor.reasoningEffort || '默认'}${actor.enabled === false ? ' · 未参与执行' : ''}`;
+    this.find('#office-agent-host').textContent = actor.kind === 'facility' ? '设施 · 本机测试进程' : `职位：${actor.title || actor.name} · 宿主：${hosts[actor.hostType] || actor.hostType} · 模型：${actor.model || '默认'} · 思考：${actor.reasoningEffort || '默认'} · 语言：${({ 'zh-CN': '中文', en: 'English', ja: '日本語', ko: '한국어' })[actor.effectiveLanguage] || '中文'}${actor.nativeLanguage ? '（员工母语）' : '（继承项目）'}${actor.enabled === false ? ' · 未参与执行' : ''}`;
     this.find('#office-agent-name').textContent = actor.name;
     const state = this.find('#office-agent-status'); state.textContent = states[actor.state]; state.className = `office-state ${actor.state}`;
     this.find('#office-agent-description').textContent = actor.description;
