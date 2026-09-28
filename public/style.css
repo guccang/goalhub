@@ -1356,3 +1356,14 @@ select:focus {
 .delivery-panel{background:#fff;border:1px solid #dce3ee;border-radius:12px;padding:18px;margin:16px 0}.delivery-heading,.delivery-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.delivery-heading h2{margin:0;font-size:18px}.delivery-panel p{white-space:pre-wrap}.delivery-actions label{max-width:140px}.delivery-files small{display:block;overflow-wrap:anywhere;color:#60758e}.delivery-log{margin-top:14px}.delivery-log pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.delivery-actions a{display:inline-block;text-decoration:none}
 
 #delivery-summary-dialog .delivery-panel{border:0;padding:0;margin:0}#delivery-summary-dialog .delivery-heading h2{font-size:16px}
+/* 提示词仅通过链接打开独立弹窗，长文本自动换行以适配窄屏。 */
+.prompt-link { color:#3659bf; font-size:14px; text-decoration:underline; text-underline-offset:3px; cursor:pointer; display:inline-block; padding:6px 0; }
+.prompt-link:hover { color:#203c90; }
+.prompt-link:focus-visible { outline:2px solid #3659bf; outline-offset:4px; border-radius:3px; }
+.team-generator-actions { align-items:center; }
+.team-generator-actions .prompt-link { order:1; margin-inline:8px; }
+.team-generator .setup-note { font-size:14px; line-height:1.7; margin:12px 0; }
+.team-generator textarea { font-size:16px; line-height:1.6; }
+.prompt-dialog { width:min(960px, calc(100vw - 32px)); max-height:85vh; }
+.prompt-dialog pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.65; max-height:48vh; }
+#host-test-output pre { white-space:pre-wrap; overflow-wrap:anywhere; }
