@@ -143,7 +143,7 @@ test('同项目两次迭代保留首轮证据，重启后协调者及开发会�
       if (count === 2) {
         assert.equal(options.sessionId, 'planner-session');
         assert.equal(readFileSync(join(options.cwd, 'answer.txt'), 'utf8'), '42');
-        assert.match(options.input, /previousIterations/);
+        assert.doesNotMatch(options.input, /previousIterations/);
       }
     },
   });

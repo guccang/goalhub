@@ -226,8 +226,8 @@ test('调用确认按操作选择阶段，交付预览不保存配置或创建�
   assert.equal(f.store.project(id).goal, f.project.goal);
 });
 
-// 新目标预览携带上一轮事实，God 仅生成长期能力定义，不再次传播旧版说明。
-test('God 不传播旧员工目标，新目标预览包含当前已完成迭代', async t => {
+// 新目标预览不携带上一轮目标和摘要，God 仅生成长期能力定义，不再次传播旧版说明。
+test('God 不传播旧员工目标，新目标预览不包含历史迭代', async t => {
   const f = await fixture(t), id = f.project.id;
   const old = team(f.store.project(id));
   old[0].instructions = '仅创建欢迎页面，h1 必须是 Hello GoalHub'; delete old[0].instructionsVersion;
@@ -236,10 +236,11 @@ test('God 不传播旧员工目标，新目标预览包含当前已完成迭代'
   assert.doesNotMatch(input, /Hello GoalHub/);
   assert.match(input, /可跨目标复用的长期职责/);
   assert.match(input, /不得写入具体功能/);
+  f.store.update(id, { summary: '上一轮摘要标记' });
   const preview = await f.request(`/projects/${id}/prompt-preview`, { role: 'planner', goal: '新增数独小游戏' });
   const prompt = preview.value.entries[0].input;
   assert.ok(prompt.startsWith('当前目标（本轮唯一产品目标）："新增数独小游戏"'));
   assert.doesNotMatch(prompt, /完成 Unity 登录流程/);
-  assert.match(prompt, new RegExp(f.project.active_goal_id));
+  assert.doesNotMatch(prompt, /previousIterations|上一轮摘要标记/);
   assert.doesNotMatch(prompt, /Hello GoalHub/);
 });
