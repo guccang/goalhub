@@ -23,3 +23,31 @@
 /* 任务按实际状态分栏，小屏自动换行。 */
 .task-board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }.task-column { min-width:0; padding:12px; background:#f7f9fc; }.task-column>h3 { margin:0 0 12px; font-size:14px; }.task-column .task-item { background:white; padding:14px; }.task-column .task-heading { flex-wrap:wrap; }
 @media(max-width:700px) { .task-board { grid-template-columns:1fr; } }
+
+/* 首屏突出办公室，需求直接填写，历史和技术信息按需查阅。 */
+.project-header { min-height:100px; padding:16px 32px; }
+.project-header h1 { font-size:24px; margin:4px 0 8px; }
+.breadcrumb,#project-created,.workspace-mode>span { display:none; }
+.office-view { padding-top:16px; padding-bottom:12px; }
+.office-secondary { margin-top:18px; }
+.office-secondary>summary { cursor:pointer; font-size:14px; color:var(--muted); padding:10px 0; }
+.goal-composer { margin:20px 32px; padding:22px; background:#fff; border:1px solid var(--line); border-left:3px solid #345fea; border-radius:6px; }
+.goal-composer .dialog-header { padding:0; border:0; margin-bottom:16px; }
+.goal-composer h2 { font-size:20px; margin:0 0 8px; }
+.goal-composer .dialog-header p { margin:0; color:var(--muted); font-size:13px; }
+.goal-composer fieldset { border:0; padding:0; margin:0; min-width:0; }
+.goal-composer label { display:block; margin:12px 0; font-size:13px; }
+.goal-composer input:not([type=checkbox]),.goal-composer textarea,.goal-composer select { width:100%; margin-top:7px; }
+.goal-composer .inline-choice { display:flex; }
+.goal-composer .dialog-footer { padding:12px 0 0; margin-top:12px; }
+.goal-composer .create-note { font-size:12px; color:var(--muted); line-height:1.7; }
+.goal-composer #iteration-note { display:none; }
+.goal-composer details>summary { cursor:pointer; color:var(--muted); font-size:13px; padding:10px 0; }
+.goal-composer fieldset:disabled { opacity:.65; }
+.iteration-panel { margin-bottom:0; }
+.usage-panel { margin-top:10px; }
+@media(max-width:700px) { .goal-composer { margin:16px 13px; padding:16px; }.project-header { padding:16px 13px; }.goal-composer .dialog-footer { flex-wrap:wrap; }.project-header h1 { font-size:21px; } }
+
+/* 简要进度始终可见，长摘要限制高度，完整内容在任务页查看。 */
+.project-progress-summary { margin:0; padding:10px 32px; background:#fff; color:var(--muted); font-size:13px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+@media(max-width:700px) { .project-progress-summary { padding:8px 13px; } }
