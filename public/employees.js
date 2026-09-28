@@ -1,4 +1,5 @@
 // 本文件编辑当前项目的员工草稿，保存后才影响调度，取消不修改服务器数据。
+import { attachModelPicker } from './model-picker.js';
 const hosts = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
 // escape 防止员工名称和补充要求进入 HTML 时形成可执行标记。
 function escape(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -50,6 +51,10 @@ export class EmployeeManager {
       <label>员工母语<select name="nativeLanguage">${options({ '': '继承项目语言', ...this.languages }, employee.nativeLanguage || '')}</select></label><label>单轮时限（分钟）<input type="number" name="timeoutMinutes" min="1" max="240" value="${employee.timeoutMinutes}" required></label>
       <label>人物形象<select name="character">${options(Object.fromEntries(this.characters.map(name => [name, name])), employee.character)}</select></label><label class="inline-choice"><input type="checkbox" name="enabled" ${employee.enabled ? 'checked' : ''}>参与执行</label></div>
       <label>补充工作要求<textarea name="instructions" maxlength="4000" rows="2">${escape(employee.instructions)}</textarea></label><button class="secondary" type="button" data-remove-employee="${escape(employee.id)}">删除此员工</button></fieldset>`).join('') || '<p>暂无员工，点击“增加员工”组建团队。</p>';
+    this.list.querySelectorAll('input[name=model]').forEach(input => {
+      const employee = this.employees.find(item => item.id === input.closest('[data-employee]').dataset.employee);
+      attachModelPicker(input, this.api, () => employee.hostType).load();
+    });
     this.dialog.querySelector('#add-employee').disabled = this.employees.length >= 15;
   }
   // save 提交完整团队；运行中后端拒绝修改，错误保留当前编辑内容。

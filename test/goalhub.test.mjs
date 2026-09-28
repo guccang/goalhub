@@ -590,3 +590,16 @@ test('语言接口保存四种语言且拒绝非法配置', async t => {
   const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employees: [], language: 'xx' }) });
   assert.equal(response.status, 400); assert.equal(team(f.store.project(f.project.id)).length, 4);
 });
+
+// 模型目录接口复用运行时查询，不改变宿主配置或连通性测试结果。
+test('动态模型 HTTP 接口返回宿主目录和前端组件', async t => {
+  const f = fixture(t), server = createApp(f);
+  f.runtime.models = async type => ({ supported: true, models: [{ model: type + '-dynamic', displayName: '来自宿主' }] });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const result = await (await fetch(base + '/api/host/models?type=codex')).json();
+  assert.equal(result.models[0].model, 'codex-dynamic');
+  assert.equal((await fetch(base + '/model-picker.js')).status, 200);
+  assert.equal(server.hostSetup.profile().revision, '');
+});

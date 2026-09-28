@@ -104,3 +104,30 @@ test('全部宿主状态独立展示，配置变更与跨宿主切换不会误�
   state = await setup.snapshot(); assert.equal(state.hosts.find(host => host.hostType === 'codex').status, 'stale');
   await setup.close();
 });
+
+// 模型目录查询必须与运行认证一致，并将并发员工查询合并为一个进程。
+test('动态模型查询隔离设备认证、合并并发并回收进程', async t => {
+  const f = await fixture(t); let calls = 0, stopped = 0;
+  await saveCodex(f.module, f.dataDir, { authMode: 'device' });
+  f.runtime.loaded = Promise.resolve({ ...f.module,
+    // runProcess 模拟目录协议，不调用模型推理。
+    runProcess(command, args, options) {
+      calls++; assert.equal(command, 'codex'); assert.ok(args.includes('forced_login_method="chatgpt"'));
+      assert.equal(options.env.CODEX_HOME, join(f.dataDir, 'codex-auth', 'device'));
+      let finish; const done = new Promise(resolve => { finish = resolve; });
+      return { done,
+        // stop 记录协议完成后的回收。
+        stop() { stopped++; finish({ code: 0 }); },
+        // write 根据握手或目录请求发送响应。
+        write(line) { const request = JSON.parse(line); if (request.method === 'initialized') return;
+          queueMicrotask(() => options.onLine('stdout', JSON.stringify({ id: request.id, result: request.method === 'initialize' ? {} : { data: [{ model: 'dynamic-model', displayName: '动态模型', isDefault: true }], nextCursor: null } })));
+        }
+      };
+    }
+  });
+  const [a,b] = await Promise.all([f.runtime.models('codex'), f.runtime.models('codex')]);
+  assert.deepEqual(a,b); assert.equal(a.models[0].model,'dynamic-model'); assert.equal(calls,1); assert.equal(stopped,1);
+  await f.runtime.models('codex'); assert.equal(calls,2);
+  assert.equal((await f.runtime.models('claudecode')).supported,false);
+  await assert.rejects(f.runtime.models('invalid'), /不支持/);
+});

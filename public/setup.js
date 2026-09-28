@@ -1,9 +1,11 @@
 // 本文件驱动宿主验证、目标输入和确认方式选择，测试通过前禁止进入规划。
+import { attachModelPicker } from './model-picker.js';
 export class SetupFlow {
   // constructor 绑定向导控件，轮询只更新测试结果，不覆盖正在编辑的设置。
   constructor({ api, selectProject, refresh, toast }) {
     Object.assign(this, { api, selectProject, refresh, toast });
-    this.form = document.querySelector('#host-form'); this.dirty = true; this.pending = false;
+    this.form = document.querySelector('#host-form');
+    this.modelPicker = attachModelPicker(this.form.elements.model, api, () => this.form.elements.hostType.value); this.dirty = true; this.pending = false;
     this.form.addEventListener('input', () => { this.dirty = true; this.paint(); });
     this.find('#host-cards').addEventListener('click', event => {
       const card = event.target.closest('[data-host]');
@@ -65,7 +67,7 @@ export class SetupFlow {
     this.form.elements.apiKey.value = ''; this.form.elements.clearApiKey.checked = false;
     this.form.elements.authMode.value = value.authMode || 'local';
     this.find('#host-key-state').textContent = value.hasApiKey ? '已保存密钥，留空可保留。' : '未保存密钥，可填写或沿用本机宿主认证。';
-    this.paint();
+    this.paint(); this.modelPicker.load();
   }
   // passed 当前配置存在成功探测且没有未保存编辑时，才放行下一步。
   passed() { return !this.dirty && !this.pending && this.state?.tests?.find(test => test.revision === this.state.revision)?.status === 'passed'; }
@@ -102,7 +104,7 @@ export class SetupFlow {
     this.find('#device-url').href = showCode ? auth.url : '#';
     this.find('#device-code').textContent = showCode ? auth.code : '';
     this.find('#host-auth-history').textContent = auth?.history?.map(item => `${item.created_at} · ${item.message}`).join('\n') || '暂无认证记录';
-    this.form.querySelectorAll('input, select').forEach(element => { element.disabled = this.pending || running || this.loading; });
+    this.form.querySelectorAll('input, select').forEach(element => { element.disabled = this.pending || running || this.loading || element.dataset.unavailable === 'true'; });
     this.find('#next-goal').textContent = this.returnToGoal ? '返回目标草稿' : '完成';
     this.find('#selected-host').textContent = this.passed() ? `共用已验证宿主：${this.state.hostType} · ${this.state.model || '默认模型'}` : '全局宿主尚未通过测试，请先点击「管理全局宿主」。目标内容可先填写并保留。';
     this.find('#create-form [type=submit]').disabled = this.creating || !this.passed();
@@ -115,7 +117,7 @@ export class SetupFlow {
   async save() {
     const value = Object.fromEntries(new FormData(this.form)); value.clearApiKey = this.form.elements.clearApiKey.checked;
     this.pending = true; this.paint(); this.find('#host-error').textContent = '';
-    try { this.state = await this.api('/host', value); this.form.elements.apiKey.value = ''; this.form.elements.clearApiKey.checked = false; this.find('#host-key-state').textContent = this.state.credentials.hasApiKey ? '已保存密钥，留空可保留。' : '未保存 API 密钥。'; this.dirty = false; }
+    try { this.state = await this.api('/host', value); this.form.elements.apiKey.value = ''; this.form.elements.clearApiKey.checked = false; this.find('#host-key-state').textContent = this.state.credentials.hasApiKey ? '已保存密钥，留空可保留。' : '未保存 API 密钥。'; this.dirty = false; this.modelPicker.load(); }
     finally { this.pending = false; this.paint(); }
   }
   // login 保存当前认证方式再发起设备码登录，刷新后继续显示同一个登录任务。
