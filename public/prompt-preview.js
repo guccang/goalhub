@@ -51,7 +51,9 @@ export function installPromptPreviews({ api, getProject, employees, setup }) {
       if (requestVersion !== version || !dialog.open) return;
       note.textContent = result.note;
       for (const entry of result.entries) {
-        const section = document.createElement('section'), heading = document.createElement('h3'), pre = document.createElement('pre');
+        // 每条提示词使用原生折叠区，默认仅显示标题，展开后完整呈现内容。
+        const section = document.createElement('details'), heading = document.createElement('summary'), pre = document.createElement('pre');
+        section.className = 'prompt-entry';
         heading.textContent = entry.title;
         section.append(heading);
         if (entry.executor) {

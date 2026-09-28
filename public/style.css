@@ -1365,5 +1365,9 @@ select:focus {
 .team-generator .setup-note { font-size:14px; line-height:1.7; margin:12px 0; }
 .team-generator textarea { font-size:16px; line-height:1.6; }
 .prompt-dialog { width:min(960px, calc(100vw - 32px)); max-height:85vh; }
-.prompt-dialog pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.65; max-height:48vh; }
+/* 提示词按标题折叠；展开内容自然排版，仅预览窗口整体滚动。 */
+.prompt-entry { border-bottom:1px solid var(--line); padding:14px 0; }
+.prompt-entry>summary { cursor:pointer; font-size:16px; font-weight:600; padding:8px 0; color:var(--ink); }
+.prompt-entry>summary:focus-visible { outline:2px solid #3659bf; outline-offset:3px; border-radius:3px; }
+.prompt-dialog pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.65; max-height:none; overflow:visible; }
 #host-test-output pre { white-space:pre-wrap; overflow-wrap:anywhere; }
