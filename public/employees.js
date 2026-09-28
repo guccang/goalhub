@@ -1,5 +1,6 @@
 // 本文件管理项目员工草稿，以人物选择、职位定义和负责人设置完成组队。
-import { promptLink } from './prompt-preview.js';
+// 预览模块缺失时隐藏增强入口，员工管理和主页面继续工作。
+const { promptLink } = await import('./prompt-preview.js').catch(() => ({ promptLink: () => '' }));
 import { attachModelPicker } from './model-picker.js';
 import { paintPortrait } from './vendor/munder-difflin/portrait-art.js';
 const hosts = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };

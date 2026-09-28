@@ -732,3 +732,21 @@ test('项目默认员工继承 Codex 全局强度且允许独立覆盖', t => {
   assert.equal(team(project)[1].reasoningEffort, 'low');
   assert.ok(team({ ...f.project, settings: { hostType: 'claudecode', reasoningEffort: 'high' } }).every(employee => employee.reasoningEffort === ''));
 });
+
+// 服务启动后新增的前端模块应立即可读，非公开路径仍不能访问。
+test('新增前端模块无需重启且不会暴露项目源码', async t => {
+  const f = fixture(t), server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const name = `startup-regression-${process.pid}.js`;
+  const file = new URL(`../public/${name}`, import.meta.url);
+  t.after(() => { server.closeAllConnections(); server.close(); rmSync(file, { force: true }); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  assert.equal((await fetch(`${base}/${name}`)).status, 404);
+  writeFileSync(file, '// 临时回归模块，不包含业务数据。\nexport const loaded = true;');
+  const response = await fetch(`${base}/${name}`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /text\/javascript/);
+  assert.match(await response.text(), /loaded = true/);
+  assert.equal((await fetch(`${base}/lib/app.mjs`)).status, 404);
+  assert.equal((await fetch(`${base}/data/goalhub.sqlite`)).status, 404);
+});

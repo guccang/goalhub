@@ -115,3 +115,7 @@ body:has(dialog[open]) { overflow:hidden; }
 .office-view.expanded { --office-height:76dvh; }
 .office-attribution { text-align:center; }
 @media(max-width:700px) { .office-view { --office-height:max(220px,calc(100dvh - 320px)); } }
+
+/* 读取成功前不展示空项目引导，启动异常明确显示为加载错误。 */
+.startup-state { padding:48px 24px; text-align:center; color:var(--muted); }
+.startup-state p { margin-bottom:16px; }

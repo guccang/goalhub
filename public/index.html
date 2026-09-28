@@ -27,7 +27,8 @@
   </dialog>
   <main id="workspace">
     <nav class="workspace-toolbar" aria-label="工作台操作"><button id="sidebar-toggle" class="text-button" data-panel="sidebar" aria-controls="sidebar" aria-expanded="false">☰ 项目与设置</button><details id="project-tools" class="project-menu" hidden><summary>项目选项</summary><div><button data-action="employee-details">员工与记录</button><button data-panel="goal-dialog">新需求</button><button data-panel="usage-dialog">上下文与用量</button><button data-action="manage-team">管理团队</button></div></details></nav>
-    <div id="empty" class="empty-workspace">
+    <section id="startup-state" class="startup-state" role="status"><p id="startup-message">正在读取项目…</p><button id="startup-retry" class="secondary" hidden>重新加载</button></section>
+    <div id="empty" class="empty-workspace" hidden>
       <div class="empty-visual" aria-hidden="true"><span class="goal-ring">◎</span><div class="trail"><i></i><i></i><i></i></div><span class="finish-mark">✓</span></div>
       <p class="intro-note">从想法，到经过验证的结果</p>
       <h1>写下目标，<br>让执行持续向前。</h1>

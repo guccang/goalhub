@@ -1,10 +1,21 @@
+// 启动引导使用外部模块，兼容仅允许同源脚本的内容安全策略。
+document.querySelector('#startup-retry').addEventListener('click', () => location.reload());
+try {
 // 本文件驱动目标工作台，定期读取 SQLite 状态并提供创建、问答、暂停和日志查询交互。
-import { installPromptPreviews, promptLink } from './prompt-preview.js';
-import { ProjectsPanel } from './projects.js';
-import { SetupFlow } from './setup.js';
-import { OfficeView } from './office-view.js';
-import { GodPanel } from './god.js';
-import { EmployeeManager } from './employees.js';
+// 提示词预览是可选增强；旧服务缺少新模块时仍须加载项目和绑定操作。
+const { installPromptPreviews, promptLink } = await import('./prompt-preview.js').catch(() => ({
+  promptLink: () => '',
+  // 旧服务下保留明确反馈，提示词预览不可用不影响项目操作。
+  installPromptPreviews: () => document.addEventListener('click', event => {
+    if (!event.target.closest('a[data-prompt]')) return;
+    event.preventDefault(); toast('当前服务尚未加载提示词预览功能，请重启本地 GoalHub 服务。');
+  }),
+}));
+const { ProjectsPanel } = await import('./projects.js');
+const { SetupFlow } = await import('./setup.js');
+const { OfficeView } = await import('./office-view.js');
+const { GodPanel } = await import('./god.js');
+const { EmployeeManager } = await import('./employees.js');
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
 const labels = { ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
@@ -14,7 +25,7 @@ let selectedGoal = '';
 let selected = localStorage.getItem('goalhub.project') || '', project = null, projects = [], tab = 'tasks', busy = false, refreshInFlight = false;
 let events = [], search = '', kind = '', questionsKey = '', toastTimer, eventProject = '', historyMode = false;
 const markupCache = new WeakMap();
-let recordsOwner = null;
+let recordsOwner = null, hasLoadedProjects = false;
 const office = new OfficeView({ onAction: action, onError: toast,
   onManage: () => employees.open(selected),
   onSelect: showEmployeeRecords,
@@ -204,7 +215,10 @@ async function refresh() {
       project = detail; renderProject();
       if (tab === 'activity' && (!historyMode || eventProject !== selected)) await loadEvents();
     } else { project = null; renderProject(); }
-  } catch (error) { $('#connection').textContent = '连接中断，正在重试'; $('#connection-dot').className = 'connection-dot error'; office.disconnected(); }
+    hasLoadedProjects = true; $('#startup-state').hidden = true;
+  } catch (error) {
+    if (!hasLoadedProjects) { $('#empty').hidden = true; $('#startup-state').hidden = false; $('#startup-message').textContent = '项目读取失败，正在重试。请检查本地服务是否已启动。'; $('#startup-retry').hidden = false; }
+    $('#connection').textContent = '连接中断，正在重试'; $('#connection-dot').className = 'connection-dot error'; office.disconnected(); }
   finally { refreshInFlight = false; }
 }
 
@@ -294,3 +308,12 @@ $('#log-search').addEventListener('submit', async (event) => {
 
 await refresh();
 setInterval(refresh, 2000);
+
+} catch (error) {
+  // 模块下载或初始化失败时明确反馈，不把未加载状态当成空项目。
+  console.error('GoalHub 启动失败', error);
+  document.querySelector('#empty').hidden = true;
+  document.querySelector('#startup-state').hidden = false;
+  document.querySelector('#startup-message').textContent = '页面未能启动。请重启本地 GoalHub 服务后重新加载；加载失败不代表项目数据被删除。';
+  document.querySelector('#startup-retry').hidden = false;
+}
