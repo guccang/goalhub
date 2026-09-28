@@ -28,13 +28,16 @@ async function waitUntil(predicate, message, timeout = 15000) {
 function fixture(t, behavior = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'goalhub-test-'));
   const store = new Store(join(directory, 'state.sqlite')), git = new ProjectGit(directory, store);
-  const counts = { developer: 0, planner: 0, evaluator: 0, final: 0, test: 0 }, calls = [], stopped = [];
+  const counts = { probe: 0, developer: 0, planner: 0, evaluator: 0, final: 0, test: 0 }, calls = [], stopped = [];
   const runtime = {
+    dataDir: directory,
+    // load 使用公共配置模块，模型调用仍由下方可控宿主模拟。
+    async load() { return new Runtime(directory).load(); },
     // status 返回本地模拟模块状态。
     status() { return { available: true, message: '测试宿主' }; },
     // host 模拟可停止的公共 Agent 句柄，并写入真实源码文件。
     async host(options) {
-      const role = options.input.includes('你是规划 Agent') ? 'planner' : options.input.includes('你是执行 Agent') ? 'developer' : options.input.includes('最终验收评估') ? 'final' : 'evaluator';
+      const role = options.input.includes('这是宿主连通性测试') ? 'probe' : options.input.includes('你是规划 Agent') ? 'planner' : options.input.includes('你是执行 Agent') ? 'developer' : options.input.includes('最终验收评估') ? 'final' : 'evaluator';
       const count = ++counts[role]; calls.push({ ...options, role });
       options.onSession?.(`${role}-session`); options.onEvent?.('output', `${role} 原始流事件`);
       let resolveDone, finished = false;
@@ -50,6 +53,7 @@ function fixture(t, behavior = {}) {
           const custom = behavior[role] ? await behavior[role]({ options, count, counts, directory }) : undefined;
           if (custom === 'hold' || finished) return;
           let reply = custom;
+          if (reply === undefined && role === 'probe') reply = options.input.match(/GOALHUB_OK_[a-f0-9-]+/)[0];
           if (reply === undefined && role === 'planner') reply = plan;
           if (reply === undefined && role === 'developer') { writeFileSync(join(options.cwd, 'answer.txt'), '42'); reply = { status: 'done', summary: '已生成结果文件并完成开发' }; }
           if (reply === undefined) reply = { action: role === 'final' ? 'complete' : 'continue', summary: '目标与测试证据一致' };
@@ -181,17 +185,30 @@ test('HTTP 接口可创建查询项目并拒绝跨源和无效输入', async (t)
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => { server.closeAllConnections(); server.close(); });
   const base = `http://127.0.0.1:${server.address().port}`;
-  const created = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'HTTP 项目', goal: '测试保存目标', autoStart: false }) });
+  await server.hostSetup.save({ hostType: 'codex', model: '' });
+  const probe = server.hostSetup.start();
+  await waitUntil(() => !server.hostSetup.job, '宿主测试未结束');
+  const created = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'HTTP 项目', goal: '测试保存目标', autoStart: false, hostTestId: probe.id }) });
   assert.equal(created.status, 201);
   const value = await created.json(); assert.equal(value.status, 'paused');
   const forbidden = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' }, body: '{}' });
   assert.equal(forbidden.status, 403);
-  const invalid = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'x', goal: 'x', settings: { evaluationMinutes: -1 } }) });
+  const invalid = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'x', goal: 'x', hostTestId: probe.id, settings: { evaluationMinutes: -1 } }) });
   assert.equal(invalid.status, 400);
   assert.equal((await fetch(`${base}/server.mjs`)).status, 404);
   const records = await (await fetch(`${base}/api/projects/${value.id}/events?search=保存`)).json();
   assert.equal(records.length, 1); assert.equal(records[0].kind, 'goal.created');
   assert.equal((await fetch(base)).status, 200);
+  const headers = { 'Content-Type': 'application/json' };
+  assert.equal((await fetch(`${base}/api/projects`, { method: 'POST', headers, body: JSON.stringify({ name: '禁止跳过', goal: '未经测试' }) })).status, 400);
+  assert.equal((await fetch(`${base}/api/projects/${value.id}/start`, { method: 'POST', headers, body: '{}' })).status, 200);
+  await waitUntil(() => !f.orchestrator.controls.has(value.id), '预览未完成');
+  assert.equal(f.store.project(value.id).status, 'awaiting_approval'); assert.equal(f.counts.developer, 0);
+  assert.equal((await fetch(`${base}/api/projects/${value.id}/start`, { method: 'POST', headers, body: '{}' })).status, 400);
+  assert.equal((await fetch(`${base}/api/projects/${value.id}/approve`, { method: 'POST', headers, body: '{}' })).status, 200);
+  await waitUntil(() => !f.orchestrator.controls.has(value.id), '确认后未完成');
+  assert.equal(f.store.project(value.id).status, 'completed');
+
 });
 
 // 重启恢复保留任务与事件，显式中断未知运行状态。
@@ -292,4 +309,46 @@ test('上游像素角色可生成非空的前后视图与行走帧', () => {
     assert.ok(frames.front[0].some((value, index) => index % 4 === 3 && value === 255));
     assert.notDeepEqual(frames.front[0], frames.front[1]);
   }
+});
+
+// 人工确认必须先停在预览，恢复服务和普通继续均不能绕过确认。
+test('人工确认计划门槛在重启后仍生效，确认后才开发', async (t) => {
+  const f = fixture(t);
+  const project = f.store.create({ name: '预览目标', goal: '生成结果文件', settings: { ...f.project.settings, confirmationMode: 'manual' } });
+  f.orchestrator.start(project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(project.id), '规划未结束');
+  assert.equal(f.store.project(project.id).status, 'awaiting_approval');
+  assert.equal(f.counts.developer, 0); assert.equal(f.counts.test, 0);
+  assert.equal(f.store.tasks(project.id).length, 1); assert.equal(f.store.checks(project.id).length, 1);
+  f.store.recover(); assert.equal(f.store.project(project.id).status, 'awaiting_approval');
+  assert.throws(() => f.orchestrator.start(project.id), /确认计划/);
+  await assert.rejects(f.orchestrator.steer(project.id, '绕过'), /确认计划/);
+  f.orchestrator.approve(project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(project.id), '执行未结束');
+  assert.equal(f.store.project(project.id).status, 'completed'); assert.equal(f.counts.developer, 1);
+  assert.ok(f.store.events(project.id).some(event => event.kind === 'plan.approved'));
+});
+
+// 真实探测成功与配置版本绑定，失败和旧配置结果不能授权新项目。
+test('宿主测试记录完整输入输出，配置变更使旧测试失效', async (t) => {
+  const f = fixture(t), server = createApp(f), setup = server.hostSetup;
+  t.after(() => setup.close());
+  await setup.save({ hostType: 'codex', model: '' });
+  const first = setup.start(); await waitUntil(() => !setup.job, '探测未结束');
+  assert.equal(setup.test(first.id).status, 'passed'); assert.match(setup.test(first.id).output, /GOALHUB_OK_/);
+  assert.equal(setup.verified(first.id).hostType, 'codex');
+  await setup.save({ hostType: 'codex', model: 'changed' });
+  assert.throws(() => setup.verified(first.id), /连通性测试/);
+  f.runtime.host = async () => ({ done: Promise.resolve({ code: 0, finalMessage: 'incorrect reply' }), stop() {} });
+  const failed = setup.start(); await waitUntil(() => !setup.job, '失败探测未结束');
+  assert.equal(setup.test(failed.id).status, 'failed'); assert.throws(() => setup.verified(failed.id));
+});
+
+// 自动确认选择直接进入开发，同时必须保留自动确认的审计记录。
+test('自动确认模式生成计划后持续执行并记录确认', async (t) => {
+  const f = fixture(t);
+  const project = f.store.create({ name: '自动目标', goal: '生成文件', settings: { ...f.project.settings, confirmationMode: 'auto' } });
+  f.orchestrator.start(project.id); await waitUntil(() => !f.orchestrator.controls.has(project.id), '自动执行未完成');
+  assert.equal(f.store.project(project.id).status, 'completed');
+  assert.ok(f.store.events(project.id, { kind: 'plan.approved' }).some(event => event.content.includes('自动确认')));
 });

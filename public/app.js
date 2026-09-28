@@ -1,8 +1,9 @@
 // 本文件驱动目标工作台，定期读取 SQLite 状态并提供创建、问答、暂停和日志查询交互。
+import { SetupFlow } from './setup.js';
 import { OfficeView } from './office-view.js';
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
-const labels = { paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
+const labels = { awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
 const roles = { planner: '目标规划', developer: '开发执行', evaluator: '定时评估', 'final-review': '最终评估', test: '测试验收' };
 const hostLabels = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
 let selected = localStorage.getItem('goalhub.project') || '', project = null, projects = [], tab = 'tasks', busy = false, refreshInFlight = false;
@@ -13,6 +14,8 @@ const office = new OfficeView({ onAction: action, onError: toast,
   // sendSteer 使用提交时的项目编号，避免切换项目后把指令发给另一个目标。
   onSteer: async (id, content) => { await api(`/projects/${id}/steer`, { content }); await refresh(); toast('补充指令已记录，正在继续执行'); },
 });
+
+const setup = new SetupFlow({ api, selectProject, refresh, toast });
 
 // setMode 在办公室和任务记录之间切换，不改变项目的执行状态。
 function setMode(value) {
@@ -73,18 +76,30 @@ function renderProject() {
   office.update(project, busy); office.setVisible(mode === 'office');
   $('#project-title').textContent = project.name; document.title = `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
-  html('#project-actions', project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : project.status === 'waiting_input' ? '' : '<button class="primary" data-action="start">继续执行</button>');
+  html('#project-actions', project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? '' : '<button class="primary" data-action="start">继续执行</button>');
   $('#project-actions').querySelectorAll('button').forEach((button) => { button.disabled = busy; });
   $('#goal-text').textContent = project.goal;
-  const stage = project.status === 'completed' ? 4 : project.status === 'verifying' ? 2 : project.resume_phase === 'execute' ? 1 : 0;
-  $('#pipeline').innerHTML = ['目标规划', '持续开发', '测试验收', '完成交付'].map((name, index) => `<div class="pipeline-step ${index < stage ? 'finished' : index === stage ? 'active' : ''}">${name}</div>`).join('');
+  const stage = project.status === 'completed' ? 4 : project.status === 'awaiting_approval' ? 2 : project.resume_phase === 'execute' ? 3 : 1;
+  $('#pipeline').innerHTML = ['宿主配置与测试', '目标拆解预览', '计划确认', '开始实现'].map((name, index) => `<div class="pipeline-step ${index < stage ? 'finished' : index === stage ? 'active' : ''}">${name}</div>`).join('');
   $('#summary').textContent = project.summary || (project.status === 'planning' ? '规划 Agent 正在分析目标、拆解任务与制定测试项目。' : '目标已保存，等待开始执行。');
   $('#summary').classList.toggle('warning', ['blocked', 'waiting_input'].includes(project.status));
   renderQuestions();
+  renderPlanPreview();
   $('#task-count').textContent = project.tasks.length ? `${project.tasks.filter((task) => task.status === 'done').length}/${project.tasks.length}` : '';
   const openedTasks = new Set([...document.querySelectorAll('#task-list details[open]')].map((item) => item.dataset.task));
   $('#task-list').innerHTML = project.tasks.length ? project.tasks.map((task, index) => `<article class="task-item"><span class="task-marker ${task.status}">${task.status === 'done' ? '✓' : task.status === 'running' ? '›' : index + 1}</span><div class="task-content"><div class="task-heading"><h3>${escape(task.title)}</h3>${badge(task.status)}</div><p>${escape(task.description)}</p><div class="task-meta"><span>${task.check_ids.length} 项验收</span>${task.attempts ? `<span>已执行 ${task.attempts} 轮</span>` : ''}</div>${task.result ? `<details data-task="${task.id}" ${openedTasks.has(task.id) ? 'open' : ''}><summary>最近执行结果</summary><p>${escape(task.result)}</p></details>` : ''}</div></article>`).join('') : '<div class="empty-section">规划完成后，这里会展示按顺序执行的小任务。<br>每个任务都会关联可执行的测试项目。</div>';
   renderInspector(); renderRuns();
+}
+
+// renderPlanPreview 展示真实任务与测试命令，人工确认入口在两种视图中均可见。
+function renderPlanPreview() {
+  const waiting = project.status === 'awaiting_approval';
+  const visible = waiting || project.status === 'planning' || (project.settings.confirmationMode && project.tasks.length);
+  $('#plan-preview').hidden = !visible;
+  if (!visible) return;
+  const tasks = project.tasks.map((task, index) => `<li><strong>${index + 1}. ${escape(task.title)}</strong><p>${escape(task.description)}</p><small>验收：${task.check_ids.map(id => escape(project.checks.find(check => check.id === id)?.title || id)).join('、')}</small></li>`).join('');
+  const checks = project.checks.map(check => `<li><strong>${escape(check.title)}</strong><p>${escape(check.expectation)}</p><code>${escape(check.command)}</code></li>`).join('');
+  html('#plan-preview', `<div class="plan-heading"><div><small>2 目标拆解预览 → 3 计划确认 → 4 开始实现</small><h2>${waiting ? '计划已就绪，等待你确认' : project.status === 'planning' ? '正在拆解目标' : '已确认的实施计划'}</h2></div>${waiting ? `<button class="primary" data-action="approve" ${project.active || busy ? 'disabled' : ''}>确认计划并开始实现</button>` : ''}</div><p>${escape(project.summary)}</p>${tasks ? `<details ${waiting ? 'open' : ''}><summary>${project.tasks.length} 个任务 · ${project.checks.length} 项测试 · ${project.settings.confirmationMode === 'auto' ? '自动确认' : '人工确认'}</summary><div class="plan-columns"><div><h3>执行任务</h3><ol>${tasks}</ol></div><div><h3>验收项目</h3><ol>${checks}</ol></div></div></details>` : '<p>规划 Agent 会分析目标并制定可执行的测试；需要信息时将在下方提问。</p>'}`);
 }
 
 // renderInspector 展示评估、实际测试结果和 Git 版本证据。
@@ -163,7 +178,7 @@ async function selectProject(id) {
 
 // action 执行用户主动触发的项目操作。
 async function action(name) {
-  if (name === 'new') { $('#create-error').textContent = ''; $('#create-dialog').showModal(); return; }
+  if (name === 'new' || name === 'host-setup') { await setup.open(); return; }
   if (name === 'close-create') { $('#create-dialog').close(); return; }
   if (name === 'close-run') { $('#run-dialog').close(); return; }
   if (name === 'toggle-goal') { const clamped = $('#goal-text').classList.toggle('clamped'); $('[data-action="toggle-goal"]').textContent = clamped ? '展开详情' : '收起详情'; return; }
@@ -199,19 +214,6 @@ document.addEventListener('click', async (event) => {
       $('#run-dialog').showModal();
     }
   } catch (error) { toast(error.message); }
-});
-
-// createProject 提交目标与运行设置，成功后进入对应工作台。
-$('#create-form').addEventListener('submit', async (event) => {
-  event.preventDefault(); const form = event.currentTarget, button = form.querySelector('[type=submit]'); button.disabled = true;
-  $('#create-error').textContent = '';
-  try {
-    const values = Object.fromEntries(new FormData(form));
-    const created = await api('/projects', { name: values.name, goal: values.goal, settings: { hostType: values.hostType, model: values.model, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
-    $('#create-dialog').close(); form.reset(); await selectProject(created.id); await refresh();
-    toast('目标已创建，开始规划');
-  } catch (error) { $('#create-error').textContent = error.message; }
-  finally { button.disabled = false; }
 });
 
 // submitAnswer 保存全部待答问题，调度器将在保存成功后恢复原项目。

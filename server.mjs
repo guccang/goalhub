@@ -25,6 +25,7 @@ async function shutdown() {
   closing = true;
   server.close();
   await orchestrator.close();
+  await server.hostSetup.close();
   server.closeAllConnections();
   store.close();
 }

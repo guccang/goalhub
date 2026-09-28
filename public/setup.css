@@ -1,0 +1,19 @@
+/* 本文件沿用汉仪旗黑和工作台配色，通过编号表达目标执行的四个真实阶段。 */
+.host-entry { margin: 16px 20px; }
+.setup-dialog { width: min(780px, calc(100vw - 28px)); }
+.setup-steps { display: grid; grid-template-columns: repeat(4, 1fr); list-style: none; padding: 0; margin: 20px 0 26px; gap: 6px; }
+.setup-steps li { border-top: 3px solid #dce3ee; padding: 12px 4px; font-size: 12px; color: #718096; }
+.setup-steps li.active { border-color: #345fea; color: #244eaa; }
+.setup-note { font-size: 12px; color: #60758e; line-height: 1.8; margin: 12px 0; }
+.setup-actions { display: flex; gap: 12px; margin: 18px 0; }
+#host-credentials { border: 1px solid #dce3ee; padding: 16px; border-radius: 6px; }
+#host-credentials legend { padding: 0 6px; color: #60758e; }
+.inline-choice { display: flex; flex-direction: row; gap: 8px; align-items: center; }.inline-choice input { width: auto; }
+#host-test-output { max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #f7f9fc; padding: 14px; font: inherit; font-size: 12px; }
+.plan-preview { margin: 22px 32px; padding: 22px; background: #fff; border: 1px solid #dce3ee; border-left: 4px solid #345fea; border-radius: 6px; }
+.plan-heading { display: flex; justify-content: space-between; align-items: center; gap: 18px; }.plan-heading small { color: #718096; }.plan-heading h2 { font-size: 19px; margin: 8px 0; }
+.plan-preview>p { font-size: 13px; line-height: 1.8; color: #60758e; white-space: pre-wrap; }
+.plan-preview summary { cursor: pointer; padding: 14px 0; color: #244eaa; }
+.plan-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }.plan-columns h3 { font-size: 14px; }.plan-columns ol { list-style: none; padding: 0; }.plan-columns li { padding: 16px 0; border-bottom: 1px solid #e8edf4; }.plan-columns p { font-size: 13px; color: #60758e; line-height: 1.8; }.plan-columns code { display: block; font: inherit; font-size: 12px; background: #f0f3f8; padding: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }.plan-columns small { color: #60758e; }
+.badge.awaiting_approval { background: #fff2d7; color: #956517; }
+@media(max-width:600px) { .setup-steps { grid-template-columns: 1fr 1fr; }.plan-preview { margin: 16px 13px; padding: 16px; }.plan-columns { grid-template-columns: 1fr; }.plan-heading { align-items: flex-start; flex-direction: column; }.host-entry { margin: 8px 16px; } }
