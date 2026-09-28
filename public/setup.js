@@ -169,6 +169,7 @@ export class SetupFlow {
       const hostTestId = this.state.tests.find(test => test.revision === this.state.revision).id;
       const configureTeam = values.configureTeam === 'on', generateTeam = values.generateTeam === 'on';
       const created = await this.api(`/projects/${projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
+      this.find('#goal-dialog').close();
       this.drafts?.delete(projectId); if (this.projectId === projectId) form.reset(); button.textContent = '生成拆解预览'; await this.selectProject(created.id); await this.refresh();
       if (generateTeam) { await this.buildTeam(created.id); }
       else if (configureTeam) { document.querySelector('#manage-employees').click(); this.toast('请配置员工，保存后点击继续执行开始规划'); }

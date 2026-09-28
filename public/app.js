@@ -32,10 +32,24 @@ const employees = new EmployeeManager({ api, refresh, toast });
 // showEmployeeRecords 仅通过负责人打开项目档案，普通员工保留个人信息。
 function showEmployeeRecords(actor) {
   recordsOwner = actor;
+  $('#employee-panel-title').textContent = `${actor.name} · ${actor.isLead ? '项目负责人' : '员工详情'}`;
+  openPanel('employee-panel');
   $('#leader-records').hidden = !actor.isLead;
   $('#leader-records-title').textContent = `${actor.name} · 项目全部记录`;
   if (actor.isLead && tab === 'activity') loadEvents().catch(error => toast(error.message));
 }
+
+// openPanel 使用独立滚动的原生对话框，不改变主页面长度。
+function openPanel(id) {
+  const panel = document.getElementById(id);
+  $('#project-tools').open = false;
+  if (!panel.open) panel.showModal();
+  if (id === 'sidebar') $('#sidebar-toggle').setAttribute('aria-expanded', 'true');
+}
+
+// closePanel 恢复触发控件焦点；侧栏默认关闭，不持久化展开状态。
+function closePanel(id) { document.getElementById(id).close(); }
+$('#sidebar').addEventListener('close', () => $('#sidebar-toggle').setAttribute('aria-expanded', 'false'));
 
 // html 仅在内容变化时替换节点，保留轮询期间的键盘焦点与详情展开状态。
 function html(selector, value) {
@@ -84,6 +98,7 @@ function renderQuestions() {
 
 // renderProject 更新任务与证据区域，保留用户打开的测试详情。
 function renderProject() {
+  $('#project-tools').hidden = !project;
   $('#empty').hidden = !!project; $('#project').hidden = !project;
   if (!project) { office.setVisible(false); return; }
   panels.render(project); setup.syncProject(project);
@@ -103,6 +118,7 @@ function renderProject() {
   $('#project-progress-summary').textContent = project.summary || (project.active_goal_id ? labels[project.status] : '写下第一个需求，让团队开始规划。');
   renderQuestions();
   renderPlanPreview();
+  if ($('#plan-preview').hidden && $('#question-panel').hidden && $('#attention-dialog').open) closePanel('attention-dialog');
   $('#task-count').textContent = project.tasks.length ? `${project.tasks.filter((task) => task.status === 'done').length}/${project.tasks.length}` : '';
   const openedTasks = new Set([...document.querySelectorAll('#task-list details[open]')].map((item) => item.dataset.task));
   const taskCards = project.tasks.map((task, index) => `<article class="task-item"><span class="task-marker ${task.status}">${task.status === 'done' ? '✓' : task.status === 'running' ? '›' : index + 1}</span><div class="task-content"><div class="task-heading"><h3>${escape(task.title)}</h3>${badge(task.status)}</div><p>${escape(task.description)}</p><div class="task-meta"><span>执行员工：${escape(project.settings.employees?.find(employee => employee.id === task.assignee)?.name || task.assignee || '等待负责人分配')}</span><span>${task.depends_on?.length || 0} 项前置任务</span><span>${task.check_ids.length} 项验收</span>${task.attempts ? `<span>已执行 ${task.attempts} 轮</span>` : ''}</div>${task.result ? `<details data-task="${task.id}" ${openedTasks.has(task.id) ? 'open' : ''}><summary>最近执行结果</summary><p>${escape(task.result)}</p></details>` : ''}</div></article>`);
@@ -193,6 +209,7 @@ async function refresh() {
 // selectProject 清理上一个项目的筛选和表单状态。
 async function selectProject(id) {
   recordsOwner = null;
+  for (const id of ['sidebar', 'employee-panel', 'goal-dialog', 'usage-dialog', 'attention-dialog']) closePanel(id);
   selectedGoal = ''; selected = id; localStorage.setItem('goalhub.project', id); questionsKey = ''; historyMode = false; events = []; search = ''; kind = '';
   $('#log-search').reset();
   const detail = await api(`/projects/${id}`);
@@ -204,7 +221,9 @@ async function selectProject(id) {
 // action 执行用户主动触发的项目操作。
 async function action(name) {
   // 顶部直接定位需要用户处理的内容，避免长页面遗漏待办。
-  if (name === 'attention') { const panel = $(project.status === 'waiting_input' ? '#question-panel' : '#plan-preview'); panel.scrollIntoView({ block: 'center' }); panel.querySelector('textarea, button')?.focus({ preventScroll: true }); return; }
+  if (name === 'attention') { openPanel('attention-dialog'); const panel = $(project.status === 'waiting_input' ? '#question-panel' : '#plan-preview'); panel.scrollIntoView({ block: 'center' }); panel.querySelector('textarea, button')?.focus({ preventScroll: true }); return; }
+  if (name === 'employee-details') { office.select(office.selected); return; }
+  if (name === 'manage-team') { $('#project-tools').open = false; await employees.open(selected); return; }
   if (name === 'new') { panels.open(); return; }
   if (name === 'edit-plan') { panels.edit(); return; }
   if (name === 'global-usage') { $('#global-dialog').showModal(); return; }
@@ -233,6 +252,9 @@ document.addEventListener('click', async (event) => {
   const button = event.target.closest('button');
   if (!button) return;
   try {
+    if (button.closest('#sidebar') && !button.dataset.closePanel) closePanel('sidebar');
+    if (button.dataset.closePanel) closePanel(button.dataset.closePanel);
+    if (button.dataset.panel) openPanel(button.dataset.panel);
     if (button.dataset.action) await action(button.dataset.action);
     if (button.dataset.project) await selectProject(button.dataset.project);
     if (button.dataset.tab) {

@@ -61,3 +61,48 @@
 #employee-work p,#employee-work details { font-size:13px; line-height:1.7; }
 #employee-work pre { max-height:240px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
 @media(max-width:700px) { #leader-records { margin:16px 13px; padding:14px; } }
+
+/* 办公室为唯一主视图；二级面板独立滚动，打开后不挤占页面空间。 */
+#workspace { margin-left:0; min-height:100dvh; }
+body:has(dialog[open]) { overflow:hidden; }
+.workspace-toolbar { display:flex; justify-content:space-between; align-items:center; height:48px; padding:0 24px; background:#fff; border-bottom:1px solid var(--line); }
+.project-menu { position:relative; font-size:13px; }
+.project-menu>summary { cursor:pointer; padding:8px; }
+.project-menu>div { position:absolute; right:0; top:100%; z-index:4; min-width:180px; padding:8px; background:white; border:1px solid var(--line); border-radius:6px; box-shadow:0 8px 24px #182d4918; }
+.project-menu button { display:block; width:100%; text-align:left; background:transparent; color:var(--ink); padding:12px; }
+.project-menu button:hover { background:#eef2fb; }
+#sidebar { inset:0 auto 0 0; margin:0; width:min(300px,90vw); max-width:none; height:100dvh; max-height:100dvh; border:0; border-right:1px solid var(--line); border-radius:0; padding:48px 18px 20px; overflow:auto; }
+#sidebar:not([open]) { display:none; }
+#sidebar[open] { display:flex; flex-direction:column; }
+#sidebar .brand,#sidebar .nav-label,#sidebar .sidebar-bottom { display:flex; }
+#sidebar .nav-label { margin-top:20px; }
+#sidebar #project-list { display:block; overflow:auto; flex:1; }
+#sidebar .project-link { width:100%; }
+#sidebar .sidebar-bottom { flex-wrap:wrap; }
+.sidebar-close { position:absolute; right:12px; top:8px; }
+.office-view { display:block; max-width:1500px; padding:12px 24px; }
+#office-canvas { height:clamp(260px,calc(100dvh - 360px),760px); min-height:0; aspect-ratio:auto; }
+.detail-drawer { position:fixed; inset:0 0 0 auto; margin:0; width:min(1120px,94vw); max-width:100vw; height:100dvh; max-height:100dvh; padding:0; border:0; border-left:1px solid var(--line); border-radius:0; overflow-y:auto; overscroll-behavior:contain; }
+.narrow-drawer { width:min(720px,94vw); }
+.drawer-heading { position:sticky; top:0; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 22px; background:white; border-bottom:1px solid var(--line); }
+.drawer-heading h2 { font-size:18px; margin:0; }
+.employee-panel-layout { display:grid; grid-template-columns:260px minmax(0,1fr); gap:20px; padding:20px; }
+.employee-panel-content { min-width:0; }
+#employee-panel .office-secondary { margin:0; }
+#employee-panel .office-controls { display:block; margin:0; }
+#employee-panel #leader-records { margin:20px 0 0; padding:0; border:0; }
+#employee-panel .project-body { display:block; }
+#employee-panel .inspector { border:0; padding:20px 0; }
+#employee-panel .task-board { grid-template-columns:1fr; }
+#employee-panel .office-roster { grid-template-columns:repeat(2,minmax(0,1fr)); }
+#employee-panel .office-terminal { margin-top:16px; }
+#goal-dialog .goal-composer { margin:0; border:0; padding:22px; }
+#usage-dialog .usage-panel { margin:0; border:0; padding:22px; }
+@media(max-width:700px) {
+ .workspace-toolbar { padding:0 12px; }
+ .office-view { padding:12px; }
+ .detail-drawer,.narrow-drawer { width:100vw; }
+ .employee-panel-layout { grid-template-columns:1fr; padding:14px; }
+ .drawer-heading { padding:12px 14px; }
+ #office-canvas { height:clamp(260px,calc(100dvh - 370px),600px); }
+}
