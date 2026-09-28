@@ -2,6 +2,7 @@
 import { ProjectsPanel } from './projects.js';
 import { SetupFlow } from './setup.js';
 import { OfficeView } from './office-view.js';
+import { GodPanel } from './god.js';
 import { EmployeeManager } from './employees.js';
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
@@ -24,6 +25,7 @@ const panels = new ProjectsPanel({ api, selectProject, selectGoal, refresh, toas
 
 // selectGoal 只切换查看目标，不改变项目当前执行目标。
 async function selectGoal(id) { selectedGoal = id; historyMode = false; eventProject = ''; questionsKey = ''; setMode('dashboard'); await refresh(); }
+const god = new GodPanel({ api, toast });
 const employees = new EmployeeManager({ api, refresh, toast });
 
 // setMode 在办公室和任务记录之间切换，不改变项目的执行状态。
@@ -200,6 +202,7 @@ async function action(name) {
   if (name === 'close-global') { $('#global-dialog').close(); return; }
   if (name === 'close-edit-plan') { $('#edit-plan-dialog').close(); return; }
   if (name === 'reset-session') { await api(`/projects/${selected}/sessions-reset`, {}); await refresh(); toast('下次调用将使用新会话，历史记录已保留'); return; }
+  if (name === 'god-setup') { await god.open(); return; }
   if (name === 'host-setup') { await setup.openHost(); return; }
   if (name === 'close-host') { setup.closeHost(); return; }
   if (name === 'close-create') { $('#create-dialog').close(); return; }

@@ -12,8 +12,8 @@ import { team } from '../lib/employees.mjs';
 
 // proposal 构造具有项目专属分工的模型输出。
 function proposal() { return { summary: '以客户端交付与验证为核心组建团队', employees: [
-  { character: 'michael', isLead: true, position: '游戏项目负责人', instructions: '分配客户端开发任务并核对测试证据', profileId: 'god' },
-  { character: 'jim', isLead: false, position: 'Unity 客户端工程师', instructions: '实现登录流程并提交自动化验证结果', profileId: 'god' },
+  { character: 'michael', isLead: true, position: '游戏项目负责人', instructions: '分配客户端开发任务并核对测试证据', profileId: 'default' },
+  { character: 'jim', isLead: false, position: 'Unity 客户端工程师', instructions: '实现登录流程并提交自动化验证结果', profileId: 'default' },
 ] }; }
 
 // fixture 创建独立数据库与可停止宿主，提供 HTTP 请求和显式完成控制。
@@ -38,11 +38,14 @@ async function fixture(t) {
   };
 }
 
-test('God 使用已保存配置生成可编辑草稿，保存前不改变项目团队', async t => {
+test('独立 God 使用自身配置生成草稿，保存前不改变项目团队', async t => {
   const f = await fixture(t), path = `/projects/${f.project.id}`, before = f.store.project(f.project.id).settings;
+  const god = (await f.request('/god')).value;
+  await f.request('/god', { ...god, model: 'manager-model', reasoningEffort: 'medium' });
   assert.equal((await f.request(path + '/team-generation', {})).status, 202);
   await f.finish();
-  assert.equal(f.calls[0].model, 'saved-model'); assert.equal(f.calls[0].reasoningEffort, 'high');
+  assert.equal(f.calls[0].model, 'manager-model'); assert.equal(f.calls[0].reasoningEffort, 'medium');
+  assert.equal(f.calls[0].id, 'goalhub-god'); assert.equal(f.calls[0].scope, 'goalhub');
   assert.ok(f.calls[0].cwd.includes('team-builder')); assert.equal(f.calls[0].sessionId, '');
   assert.match(f.calls[0].input, /完成 Unity 登录流程/);
   assert.deepEqual(f.store.project(f.project.id).settings, before);
@@ -50,6 +53,10 @@ test('God 使用已保存配置生成可编辑草稿，保存前不改变项目�
   assert.equal(draft.status, 'ready'); assert.equal(draft.result.employees[1].position, 'Unity 客户端工程师');
   assert.equal(draft.result.employees[0].id, team(f.project)[0].id);
   assert.equal(f.store.run(draft.runId).status, 'completed');
+  assert.equal(f.store.run(draft.runId).employee_id, 'goalhub-god');
+  assert.equal(f.store.employeeRun(f.project.id, team(f.project)[0]), null);
+  assert.ok(draft.result.employees.every(employee => employee.id !== 'goalhub-god'));
+  assert.equal((await f.request('/god')).value.runs[0].id, draft.runId);
   draft.result.employees[1].position = '客户端主程';
   assert.equal((await f.request(path + '/employees', { employees: draft.result.employees })).status, 200);
   assert.equal(team(f.store.project(f.project.id))[1].position, '客户端主程');
@@ -61,6 +68,9 @@ test('God 使用已保存配置生成可编辑草稿，保存前不改变项目�
 test('生成期间禁止重复组队和并发修改，取消后保留原团队', async t => {
   const f = await fixture(t), path = `/projects/${f.project.id}`, before = f.store.project(f.project.id).settings;
   await f.request(path + '/team-generation', {});
+  const god = (await f.request('/god')).value;
+  assert.equal(god.busy, true);
+  assert.equal((await f.request('/god', { ...god, model: 'changed' })).status, 400);
   for (const action of ['team-generation', 'start', 'goals', 'employees', 'approve']) assert.equal((await f.request(path + '/' + action, {})).status, 400);
   assert.throws(() => f.orchestrator.start(f.project.id), /God/);
   assert.equal((await f.request('/host', { hostType: 'codex' })).status, 400);
@@ -70,7 +80,7 @@ test('生成期间禁止重复组队和并发修改，取消后保留原团队',
   assert.deepEqual(f.store.project(f.project.id).settings, before);
 });
 
-test('未知配置、重复人物或缺少 God 的回复不会覆盖原团队', async t => {
+test('未知配置、重复人物或缺少项目负责人 的回复不会覆盖原团队', async t => {
   for (const mode of ['profile', 'character', 'lead', 'empty']) await t.test(mode, async t => {
     const f = await fixture(t), value = proposal(), before = f.store.project(f.project.id).settings;
     if (mode === 'profile') value.employees[1].profileId = 'invented';
@@ -115,4 +125,30 @@ test('服务恢复中断记录，目标和执行锁通过后才允许生成', as
   assert.equal(restored.latest(f.project.id).status, 'interrupted');
   assert.match(restored.latest(f.project.id).error, /服务重启/);
   assert.equal(f.store.run(draft.runId).status, 'interrupted');
+});
+
+test('God 配置独立持久化，项目负责人和全局默认模型变更不会覆盖它', async t => {
+  const f = await fixture(t), manager = f.server.teamBuilder.god;
+  const initial = (await f.request('/god')).value;
+  assert.equal(initial.id, 'goalhub-god'); assert.equal(initial.name, 'God');
+  const changed = { ...initial, hostType: 'claudecode', model: 'god-claude', reasoningEffort: '', instructions: '为项目明确交付边界', timeoutMinutes: 7 };
+  assert.equal((await f.request('/god', changed)).status, 200);
+  assert.equal((await f.request('/god', { ...changed, reasoningEffort: 'high' })).status, 400);
+  assert.equal((await f.request('/god', { ...changed, instructions: ' ' })).status, 400);
+  f.store.db.prepare('INSERT INTO host_profile(id,value) VALUES(1,?)').run(JSON.stringify({ hostType: 'codex', model: 'project-default', reasoningEffort: 'high' }));
+  const originalTeam = team(f.project);
+  originalTeam[0].isLead = false; originalTeam[1].isLead = true;
+  f.store.saveEmployees(f.project.id, originalTeam);
+  const restored = new TeamBuilder({ store: f.store, runtime: {}, orchestrator: f.orchestrator, hostSetup: f.server.hostSetup });
+  assert.deepEqual(restored.god.profile(), manager.profile());
+  f.server.teamBuilder.start(f.project.id);
+  const value = proposal(); value.employees[0].character = 'pam';
+  await f.finish(value);
+  assert.equal(f.calls[0].hostType, 'claudecode'); assert.equal(f.calls[0].model, 'god-claude');
+  const draft = f.server.teamBuilder.latest(f.project.id);
+  assert.equal(draft.status, 'ready'); assert.equal(draft.result.employees[0].character, 'pam');
+  assert.equal(draft.result.employees[0].model, 'project-default');
+  assert.equal(draft.result.employees[0].isLead, true);
+  assert.equal(team(f.store.project(f.project.id))[1].isLead, true);
+  assert.equal((await f.request(`/projects/${f.project.id}/employees`, { employees: [{ ...originalTeam[0], id: 'goalhub-god' }] })).status, 400);
 });

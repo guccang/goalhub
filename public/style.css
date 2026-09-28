@@ -1348,3 +1348,6 @@ select:focus {
 
 /* 团队生成入口与可编辑草稿使用同一对话框。 */
 #team-edit-fields{border:0;padding:0;margin:0;min-width:0}.team-generator{padding:16px;margin-bottom:18px;border:1px solid #cad8ef;border-radius:12px;background:#f5f8ff}.team-generator h3{margin-top:0}.team-generator-actions{display:flex;flex-wrap:wrap;gap:8px}#team-generation-status{white-space:pre-wrap;overflow-wrap:anywhere}#team-edit-fields:disabled{opacity:.65}
+
+/* 全局管理者沿用配置表单布局，生成中由原生字段组统一锁定。 */
+.god-fields{border:0;padding:0;margin:0;min-width:0}.god-fields:disabled{opacity:.65}#god-history{padding-left:20px;overflow-wrap:anywhere}
