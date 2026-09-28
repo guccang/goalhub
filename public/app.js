@@ -84,18 +84,19 @@ function renderQuestions() {
 function renderProject() {
   $('#empty').hidden = !!project; $('#project').hidden = !project;
   if (!project) { office.setVisible(false); return; }
-  panels.render(project);
+  panels.render(project); setup.syncProject(project);
   office.update(project, busy || !!project.historical || !project.active_goal_id); office.setVisible(mode === 'office' && !project.historical);
   $('#office-view').hidden = mode !== 'office' || !!project.historical;
   $('#project-title').textContent = project.name; document.title = `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
-  html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? '' : '<button class="primary" data-action="start">继续执行</button>');
+  html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
   $('#project-actions').querySelectorAll('button').forEach((button) => { button.disabled = busy; });
   $('#goal-text').textContent = project.goal;
   const stage = project.status === 'completed' ? 4 : project.status === 'awaiting_approval' ? 2 : project.resume_phase === 'execute' ? 3 : 1;
   $('#pipeline').innerHTML = ['理解需求', '计划与任务', '确认计划', '实施与验收'].map((name, index) => `<div class="pipeline-step ${index < stage ? 'finished' : index === stage ? 'active' : ''}">${name}</div>`).join('');
   $('#summary').textContent = project.summary || (project.status === 'planning' ? '规划 Agent 正在分析目标、拆解任务与制定测试项目。' : '目标已保存，等待开始执行。');
   $('#summary').classList.toggle('warning', ['blocked', 'waiting_input'].includes(project.status));
+  $('#project-progress-summary').textContent = project.summary || (project.active_goal_id ? labels[project.status] : '写下第一个需求，让团队开始规划。');
   renderQuestions();
   renderPlanPreview();
   $('#task-count').textContent = project.tasks.length ? `${project.tasks.filter((task) => task.status === 'done').length}/${project.tasks.length}` : '';
@@ -108,7 +109,7 @@ function renderProject() {
 // renderPlanPreview 展示真实任务与测试命令，人工确认入口在两种视图中均可见。
 function renderPlanPreview() {
   const waiting = project.status === 'awaiting_approval' && !project.historical;
-  const visible = waiting || project.status === 'planning' || (project.settings.confirmationMode && project.tasks.length);
+  const visible = waiting || project.status === 'planning';
   $('#plan-preview').hidden = !visible;
   if (!visible) return;
   const tasks = project.tasks.map((task, index) => `<li><strong>${index + 1}. ${escape(task.title)}</strong><p>${escape(task.description)}</p><small>验收：${task.check_ids.map(id => escape(project.checks.find(check => check.id === id)?.title || id)).join('、')}</small></li>`).join('');
@@ -194,8 +195,9 @@ async function selectProject(id) {
 
 // action 执行用户主动触发的项目操作。
 async function action(name) {
+  // 顶部直接定位需要用户处理的内容，避免长页面遗漏待办。
+  if (name === 'attention') { const panel = $(project.status === 'waiting_input' ? '#question-panel' : '#plan-preview'); panel.scrollIntoView({ block: 'center' }); panel.querySelector('textarea, button')?.focus({ preventScroll: true }); return; }
   if (name === 'new') { panels.open(); return; }
-  if (name === 'new-goal') { await setup.open(project); return; }
   if (name === 'edit-plan') { panels.edit(); return; }
   if (name === 'global-usage') { $('#global-dialog').showModal(); return; }
   if (name === 'close-register') { $('#register-dialog').close(); return; }
@@ -205,7 +207,6 @@ async function action(name) {
   if (name === 'god-setup') { await god.open(); return; }
   if (name === 'host-setup') { await setup.openHost(); return; }
   if (name === 'close-host') { setup.closeHost(); return; }
-  if (name === 'close-create') { $('#create-dialog').close(); return; }
   if (name === 'close-run') { $('#run-dialog').close(); return; }
   if (name === 'toggle-goal') { const clamped = $('#goal-text').classList.toggle('clamped'); $('[data-action="toggle-goal"]').textContent = clamped ? '展开详情' : '收起详情'; return; }
   if (name === 'older') { await loadEvents(true); return; }

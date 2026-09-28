@@ -26,25 +26,39 @@ export class SetupFlow {
     this.find('#host-dialog').addEventListener('cancel', event => { event.preventDefault(); this.closeHost(); });
     this.find('#create-form').addEventListener('submit', event => { event.preventDefault(); this.create(event.currentTarget); });
     this.find('#create-form').addEventListener('change', () => { const form = this.find('#create-form'); form.querySelector('[type=submit]').textContent = form.elements.generateTeam.checked ? '保存需求并搭建团队' : form.elements.configureTeam.checked ? '保存需求并配置员工' : '生成拆解预览'; });
-    setInterval(() => { if ((this.find('#create-dialog').open || this.find('#host-dialog').open) && !this.polling && !this.pending) this.poll().catch(error => this.error(error)); }, 1500);
+    setInterval(() => { if ((this.projectId || this.find('#host-dialog').open) && !this.polling && !this.pending) this.poll().catch(error => this.error(error)); }, 1500);
   }
   // find 读取向导内固定元素。
   find(selector) { return document.querySelector(selector); }
   // error 将错误显示在当前对话框中。
   error(error) { this.find('#host-error').textContent = error.message; }
-  // open 新目标直接填写目标，复用全局验证结果，不重复保存或要求重复测试。
-  async open(project) {
-    this.projectId = project.id;
-    this.find('#create-form [name=language]').value = project.settings.language || 'zh-CN';
-    this.find('#goal-project-label').textContent = `${project.name}：沿用项目仓库与协调者会话，描述本次需求。`;
-    this.find('#create-dialog').showModal(); this.find('#create-error').textContent = '';
-    try { this.state = await this.api('/host'); this.dirty = !this.state.revision; this.paint(); }
-    catch (error) { this.find('#create-error').textContent = error.message; }
+  // syncProject 按项目保存草稿；轮询只更新可提交状态，不覆盖输入。
+  syncProject(project) {
+    const form = this.find('#create-form');
+    this.drafts ||= new Map();
+    if (this.projectId !== project.id) {
+      if (this.projectId) this.drafts.set(this.projectId, Object.fromEntries([...form.elements].filter(field => field.name && (field.type !== 'checkbox' || field.checked)).map(field => [field.name, field.value])));
+      form.reset();
+      form.elements.language.value = project.settings.language || 'zh-CN';
+      const draft = this.drafts.get(project.id);
+      if (draft) for (const [name, value] of Object.entries(draft)) {
+        const field = form.elements[name];
+        if (field) { if (field.type === 'checkbox') field.checked = value === 'on'; else field.value = value; }
+      }
+      form.querySelector('[type=submit]').textContent = form.elements.generateTeam.checked ? '保存需求并搭建团队' : form.elements.configureTeam.checked ? '保存需求并配置员工' : '生成拆解预览';
+      this.projectId = project.id;
+      this.find('#create-error').textContent = '';
+      this.api('/host').then(state => { this.state = state; this.dirty = !state.revision; this.paint(); }).catch(error => { this.find('#create-error').textContent = error.message; });
+    }
+    this.goalBlocked = !!project.active || !!project.historical || !!project.active_goal_id && project.status !== 'completed';
+    this.find('#goal-fields').disabled = this.goalBlocked || !!this.creating;
+    this.find('#goal-project-label').textContent = project.historical ? '正在查看历史，请切回当前目标后提交新需求。' : this.goalBlocked ? '当前目标正在推进，可在办公室补充执行要求；完成后可提交新需求。' : '描述你想实现的功能和完成标准。';
+    this.paint();
   }
   // openHost 打开独立全局配置，暂存目标表单的草稿与返回位置。
   async openHost(returnToGoal = false) {
     this.returnToGoal = returnToGoal;
-    this.find('#create-dialog').close(); this.find('#host-dialog').showModal(); this.find('#host-error').textContent = '';
+    this.find('#host-dialog').showModal(); this.find('#host-error').textContent = '';
     this.state = await this.api('/host');
     this.form.elements.hostType.value = this.state.hostType; this.form.elements.model.value = this.state.model; this.form.elements.reasoningEffort.value = this.state.reasoningEffort || '';
     await this.credentials(); this.dirty = !this.state.revision; this.paint();
@@ -54,7 +68,7 @@ export class SetupFlow {
     this.find('#host-dialog').close();
     // 未保存的编辑不影响服务器已验证配置；下次打开重新读取。
     this.dirty = !this.state?.revision; this.paint();
-    if (this.returnToGoal) this.find('#create-dialog').showModal();
+    if (this.returnToGoal) this.find('#create-form [name=goal]').focus();
     this.returnToGoal = false;
   }
   // credentials 读取所选宿主的脱敏设置，禁止回显密钥。
@@ -109,7 +123,8 @@ export class SetupFlow {
     this.form.querySelectorAll('input, select').forEach(element => { element.disabled = this.pending || running || this.loading || element.dataset.unavailable === 'true'; });
     this.find('#next-goal').textContent = this.returnToGoal ? '返回目标草稿' : '完成';
     this.find('#selected-host').textContent = this.passed() ? `共用已验证宿主：${this.state.hostType} · ${this.state.model || '默认模型'}` : '全局宿主尚未通过测试，请先点击「管理全局宿主」。目标内容可先填写并保留。';
-    this.find('#create-form [type=submit]').disabled = this.creating || !this.passed();
+    this.find('#goal-fields').disabled = this.goalBlocked || !!this.creating;
+    this.find('#create-form [type=submit]').disabled = this.creating || this.goalBlocked || !this.passed();
     this.find('#save-host').disabled = this.pending || running || this.loading;
     this.find('#test-host').disabled = this.pending || running || this.loading;
     this.find('#host-test-status').textContent = this.state?.auth?.status === 'logging_in' ? '等待完成设备码授权，登录完成后可测试连通性。' : this.dirty ? '可直接点击「测试连通性」，自动保存当前配置并测试。' : running ? '正在真实调用模型，可关闭页面，稍后查看记录…' : latest?.status === 'passed' ? '连通性测试通过，可以输入目标。' : latest ? '测试未通过，请查看输出并修正配置后重试。' : '配置已保存，请测试连通性。';
@@ -144,7 +159,8 @@ export class SetupFlow {
   // create 携带成功测试编号创建目标，仅调度规划阶段。
   async create(form) {
     // 创建请求期间保持禁用，避免状态轮询导致重复提交。
-    if (this.creating) return;
+    if (this.creating || this.goalBlocked) return;
+    const projectId = this.projectId;
     this.creating = true;
     const button = form.querySelector('[type=submit]'); button.disabled = true; this.find('#create-error').textContent = '';
     try {
@@ -152,8 +168,8 @@ export class SetupFlow {
       const values = Object.fromEntries(new FormData(form));
       const hostTestId = this.state.tests.find(test => test.revision === this.state.revision).id;
       const configureTeam = values.configureTeam === 'on', generateTeam = values.generateTeam === 'on';
-      const created = await this.api(`/projects/${this.projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
-      this.find('#create-dialog').close(); form.reset(); button.textContent = '生成拆解预览'; await this.selectProject(created.id); await this.refresh();
+      const created = await this.api(`/projects/${projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
+      this.drafts?.delete(projectId); if (this.projectId === projectId) form.reset(); button.textContent = '生成拆解预览'; await this.selectProject(created.id); await this.refresh();
       if (generateTeam) { await this.buildTeam(created.id); }
       else if (configureTeam) { document.querySelector('#mode-office').click(); document.querySelector('#manage-employees').click(); this.toast('请配置员工，保存后点击继续执行开始规划'); }
       else this.toast('正在生成拆解预览');

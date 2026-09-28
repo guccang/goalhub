@@ -41,13 +41,11 @@ export class ProjectsPanel {
     if (select.innerHTML !== options) select.innerHTML = options;
     select.value = selected;
     $('#iteration-note').textContent = project.historical ? '正在查看历史迭代，执行控制已禁用。' : project.active_goal_id ? '目标共享项目仓库；下一次迭代继续协调者会话。' : '先提出需求，协调者将阅读项目并制定计划。';
-    $('#new-goal').disabled = !!project.active || !!project.historical || !!project.active_goal_id && project.status !== 'completed';
-    $('#new-goal').title = $('#new-goal').disabled ? '当前目标完成后可开始下一次迭代' : '';
     $('#reset-session').disabled = !!project.active || !!project.historical;
     $('#project-repository').textContent = `${project.paths?.repo || project.repo_path || '受管项目目录'} · 主分支 ${project.main_branch}`;
     const sessions = project.sessions || [];
-    const coordinator = sessions.find(item => item.isLead);
-    $('#usage-summary').textContent = `项目上下文与用量 · 协调者剩余 ${coordinator?.remainingPercent == null ? '未知' : coordinator.remainingPercent.toFixed(1) + '%'} · 项目累计 ${number(project.usage?.total)} tokens`; 
+
+    $('#usage-summary').textContent = '上下文与用量详情';
     $('#session-metrics').innerHTML = sessions.map(session => `<article class="session-row"><div><strong>${escape(session.name || roles[session.role])}</strong><small>${escape(session.position || '')}</small><small>${escape(session.model || '等待首次调用')}</small></div><div>${session.remainingPercent === null ? '<strong>容量未知</strong><small>宿主尚未上报上下文</small>' : `<strong>剩余 ${session.remainingPercent.toFixed(1)}%</strong><meter min="0" max="100" value="${session.remainingPercent}" aria-label="${escape(session.name || roles[session.role])}剩余上下文"></meter><small>窗口 ${number(session.window)} · 占用 ${number(session.used)} · 剩余 ${number(Math.max(0, session.window - session.used))} tokens</small>`}</div><div><small>${session.sessionId ? `会话 ${escape(session.sessionId.slice(0, 12))}…` : '尚未创建会话'}</small><small>${session.updatedAt ? `最近上报 ${new Date(session.updatedAt).toLocaleTimeString('zh-CN')}` : '恢复时沿用原会话'}</small>${session.compaction ? `<small>最近压缩 ${new Date(session.compaction.created_at).toLocaleString('zh-CN')}：${number(session.compaction.before_tokens)} → ${number(session.compaction.after_tokens)}</small>` : ''}</div></article>`).join('');
     $('#project-usage').innerHTML = this.usageRows([['本次目标', project.goalUsage], ['项目累计', project.usage]]);
     $('#project-usage-details').innerHTML = this.breakdown(project.usage);
