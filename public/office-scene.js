@@ -15,7 +15,7 @@ function box(ctx, x, y, width, height, fill, stroke) {
 
 // text 绘制办公室内的中文标牌与状态文字。
 function text(ctx, value, x, y, size = 11, color = '#435a58', align = 'left') {
-  ctx.fillStyle = color; ctx.font = `600 ${size}px "Microsoft YaHei", sans-serif`; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(value, x, y);
+  ctx.fillStyle = color; ctx.font = `400 ${size}px "GoalHub QiHei", sans-serif`; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(value, x, y);
 }
 
 // plant 绘制无需外部素材的盆栽。
@@ -51,10 +51,8 @@ function drawRoom(ctx, x, label) {
   text(ctx, label, x + 88, 57, 11, '#4b665c', 'center'); windowArt(ctx, x + 58, 78, 62);
 }
 
-// background 使用自主绘制的家具和地板生成办公室，未引入上游独立授权的贴图。
-function background() {
-  const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext('2d');
+// background 直接在设备分辨率画布绘制家具与文字，避免缓存位图放大导致文字模糊。
+function background(ctx) {
   box(ctx, 0, 0, W, H, '#d9e3d8'); box(ctx, 14, 26, 692, 423, '#718d80'); box(ctx, 18, 21, 684, 420, '#d4cab3', '#718d80');
   for (let y = 38; y < 435; y += 18) {
     box(ctx, 22, y, 676, 1, '#c1b79f');
@@ -82,7 +80,6 @@ function background() {
   for (let row = 0; row < 3; row++) { box(ctx, 545, 321 + row * 27, 53, 23, '#bec6b4', '#84988d'); box(ctx, 565, 328 + row * 27, 14, 4, '#748b80'); }
   box(ctx, 622, 329, 53, 73, '#b8ab8b', '#887f67'); box(ctx, 619, 325, 59, 9, '#dccaaa', '#9d8d70'); box(ctx, 637, 298, 22, 29, '#647875', '#4f6665');
   box(ctx, 641, 303, 14, 9, '#a6bdad'); box(ctx, 643, 317, 10, 8, '#e8e0c6'); text(ctx, '源码 / 记录', 591, 423, 10, '#6f7f6e', 'center');
-  return canvas;
 }
 
 // spriteFrames 把上游生成的 RGBA 动画帧转换为 Canvas 位图。
@@ -110,7 +107,7 @@ export class OfficeScene {
   // constructor 初始化绘制、拖动和角色命中检测；视觉操作不修改项目执行状态。
   constructor(canvas, onSelect) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.onSelect = onSelect;
-    this.floor = background(); this.actors = new Map(); this.frames = new Map(); this.messages = []; this.lastEvent = null;
+    this.actors = new Map(); this.frames = new Map(); this.messages = []; this.lastEvent = null;
     this.selected = 'developer'; this.zoom = 1; this.pan = { x: 0, y: 0 }; this.visible = false; this.online = true;
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; this.motion = !this.reduced; this.progress = { done: 0, total: 0, passed: 0, checks: 0 };
     this.abort = new AbortController(); const options = { signal: this.abort.signal };
@@ -134,6 +131,10 @@ export class OfficeScene {
     }, options);
     canvas.addEventListener('pointercancel', () => { this.drag = null; }, options);
     this.human = spriteFrames('oscar'); this.draw(0);
+    // 字体加载完成与容器尺寸变化后重绘，静止场景也能保持文字清晰。
+    document.fonts.load('14px "GoalHub QiHei"').then(() => { if (!this.abort.signal.aborted) this.draw(0); });
+    this.resizeObserver = new ResizeObserver(() => this.draw(0));
+    this.resizeObserver.observe(canvas);
   }
 
   // update 接收真实快照；初次进入或断线恢复不重放历史事件作为新工作。
@@ -197,12 +198,15 @@ export class OfficeScene {
 
   // draw 绘制办公室、真实角色状态和基于实际事件的信封传递。
   draw(dt) {
-    const ratio = Math.min(devicePixelRatio || 1, 2);
-    if (this.canvas.width !== W * ratio) { this.canvas.width = W * ratio; this.canvas.height = H * ratio; }
+    const rect = this.canvas.getBoundingClientRect();
+    const ratio = devicePixelRatio || 1;
+    const width = Math.max(1, Math.round((rect.width || W) * ratio));
+    const height = Math.max(1, Math.round((rect.height || H) * ratio));
+    if (this.canvas.width !== width || this.canvas.height !== height) { this.canvas.width = width; this.canvas.height = height; }
     const ctx = this.ctx;
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, W, H); ctx.imageSmoothingEnabled = false;
+    ctx.setTransform(width / W, 0, 0, height / H, 0, 0); ctx.clearRect(0, 0, W, H); ctx.imageSmoothingEnabled = false;
     ctx.save(); ctx.translate(W * (1 - this.zoom) / 2 + this.pan.x, H * (1 - this.zoom) / 2 + this.pan.y); ctx.scale(this.zoom, this.zoom);
-    ctx.drawImage(this.floor, 0, 0); text(ctx, `任务 ${this.progress.done}/${this.progress.total}   ·   测试 ${this.progress.passed}/${this.progress.checks}`, 360, 89, 10, '#5c7970', 'center');
+    background(ctx); text(ctx, `任务 ${this.progress.done}/${this.progress.total}   ·   测试 ${this.progress.passed}/${this.progress.checks}`, 360, 89, 10, '#5c7970', 'center');
     for (const actor of this.actors.values()) {
       const next = actor.path[0];
       if (next && dt > 0) {
@@ -235,5 +239,5 @@ export class OfficeScene {
   }
 
   // destroy 释放画布事件与动画帧，避免多次进入视图造成重复监听。
-  destroy() { this.visible = false; cancelAnimationFrame(this.frame); this.abort.abort(); }
+  destroy() { this.visible = false; cancelAnimationFrame(this.frame); this.abort.abort(); this.resizeObserver.disconnect(); }
 }

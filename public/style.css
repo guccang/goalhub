@@ -1,7 +1,15 @@
 /* 本文件定义 GoalHub 的工作台布局、任务状态、响应式适配与可访问交互样式。 */
+/* 使用用户提供的汉仪旗黑字体，覆盖页面、表单与运行记录。 */
+@font-face {
+  font-family: "GoalHub QiHei";
+  src: url("/fonts/HYQiHei_75S.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 :root {
   font-family:
-    "Microsoft YaHei UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    "GoalHub QiHei", sans-serif;
   color: #182d49;
   background: #f7f9fc;
   font-synthesis: none;
@@ -161,7 +169,7 @@ button {
   position: relative;
   background: var(--ink);
   color: white;
-  font-family: Georgia, serif;
+  font-family: "GoalHub QiHei", sans-serif;
   font-size: 34px;
   line-height: 36px;
   width: 38px;
@@ -755,7 +763,7 @@ button {
   background: #eff3fa;
   padding: 9px;
   border-radius: 4px;
-  font-family: Consolas, monospace;
+  font-family: "GoalHub QiHei", sans-serif;
   font-size: 10px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -766,8 +774,7 @@ button {
   overflow-wrap: anywhere;
   color: #60758e;
   font:
-    10px/1.6 Consolas,
-    monospace;
+    10px/1.6 "GoalHub QiHei", sans-serif;
   max-height: 200px;
   overflow: auto;
 }
@@ -804,7 +811,7 @@ button {
 }
 .commit code {
   color: #7390b5;
-  font-family: Consolas, monospace;
+  font-family: "GoalHub QiHei", sans-serif;
   margin-right: 7px;
 }
 .repo-path {
@@ -926,9 +933,7 @@ button {
 .event pre {
   margin: 5px 0 0;
   font:
-    11px/1.75 Consolas,
-    "Microsoft YaHei",
-    monospace;
+    11px/1.75 "GoalHub QiHei", sans-serif;
   color: #698098;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1078,9 +1083,7 @@ select:focus {
   padding: 15px;
   border-radius: 5px;
   font:
-    12px/1.8 Consolas,
-    "Microsoft YaHei",
-    monospace;
+    12px/1.8 "GoalHub QiHei", sans-serif;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 45vh;

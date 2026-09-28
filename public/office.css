@@ -16,7 +16,7 @@
 .office-connection.offline { color:#ac7650; }
 .office-connection.offline:before { background:#c88a52; }
 .office-canvas-wrap { position:relative; background:#d9e3d8; }
-#office-canvas { display:block; width:100%; aspect-ratio:720/460; image-rendering:pixelated; touch-action:none; cursor:grab; }
+#office-canvas { display:block; width:100%; aspect-ratio:720/460; image-rendering:auto; touch-action:none; cursor:grab; }
 #office-canvas:active { cursor:grabbing; }
 #office-canvas-error { padding:25px; color:#85573c; font-size:12px; }
 .office-scene-footer { padding:10px 13px; display:flex; align-items:center; justify-content:space-between; gap:12px; background:#f7f8ef; border-top:1px solid #c7d2c2; }
@@ -63,7 +63,7 @@
 .office-terminal { border:1px solid #d7e1e1; border-radius:6px; overflow:hidden; background:#fdfefc; }
 .office-terminal-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 15px; border-bottom:1px solid #dee6e2; background:#f0f4ef; }
 .office-terminal-heading h2 { font-size:11px; color:#5b7061; }.office-terminal-heading button { font-size:10px; color:#668a72; }
-#office-output { margin:0; padding:15px; height:210px; overflow:auto; font:11px/1.9 Consolas,"Microsoft YaHei",monospace; color:#657669; white-space:pre-wrap; overflow-wrap:anywhere; scrollbar-color:#c2cfc3 transparent; }
+#office-output { margin:0; padding:15px; height:210px; overflow:auto; font:11px/1.9 "GoalHub QiHei",sans-serif; color:#657669; white-space:pre-wrap; overflow-wrap:anywhere; scrollbar-color:#c2cfc3 transparent; }
 .office-attribution { display:flex; flex-wrap:wrap; gap:6px; align-items:center; color:#a0aba5; font-size:9px; padding:16px 1px 0; }
 .office-attribution a { color:#7e9687; text-decoration:underline; text-underline-offset:3px; }.office-attribution>span { margin-left:auto; }
 @media(min-width:1700px) { .office-view { grid-template-columns:minmax(0,1fr) 320px; padding-top:30px; }.office-controls { padding:24px; } }
