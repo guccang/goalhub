@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { Store } from './lib/store.mjs';
 import { ProjectGit } from './lib/git.mjs';
 import { Runtime } from './lib/runtime.mjs';
-import { Orchestrator } from './lib/orchestrator.mjs';
+import { GoalScheduler } from './lib/goal-scheduler.mjs';
 import { createApp } from './lib/app.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -14,8 +14,9 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT �
 const store = new Store(resolve(dataDir, 'goalhub.sqlite'));
 store.recover();
 const git = new ProjectGit(dataDir, store), runtime = new Runtime(dataDir);
-const orchestrator = new Orchestrator({ store, git, runtime });
+const orchestrator = new GoalScheduler({ store, git, runtime });
 const server = createApp({ store, git, runtime, orchestrator });
+orchestrator.recoverQueues();
 server.listen(port, '127.0.0.1', () => console.log(`GoalHub 已启动：http://127.0.0.1:${port}\n数据目录：${dataDir}`));
 let closing = false;
 

@@ -2,8 +2,8 @@
 import { attachModelPicker } from './model-picker.js';
 export class SetupFlow {
   // constructor 绑定向导控件，轮询只更新测试结果，不覆盖正在编辑的设置。
-  constructor({ api, selectProject, refresh, toast, buildTeam }) {
-    Object.assign(this, { api, selectProject, refresh, toast, buildTeam });
+  constructor({ api, selectProject, selectGoal, refresh, toast, buildTeam }) {
+    Object.assign(this, { api, selectProject, selectGoal, refresh, toast, buildTeam });
     this.form = document.querySelector('#host-form');
     this.modelPicker = attachModelPicker(this.form.elements.model, api, () => this.form.elements.hostType.value); this.dirty = true; this.pending = false;
     this.form.addEventListener('input', () => { this.dirty = true; this.paint(); });
@@ -50,9 +50,9 @@ export class SetupFlow {
       this.find('#create-error').textContent = '';
       this.api('/host').then(state => { this.state = state; this.dirty = !state.revision; this.paint(); }).catch(error => { this.find('#create-error').textContent = error.message; });
     }
-    this.goalBlocked = !!project.active || !!project.historical || !!project.active_goal_id && project.status !== 'completed';
+    this.goalBlocked = false;
     this.find('#goal-fields').disabled = this.goalBlocked || !!this.creating;
-    this.find('#goal-project-label').textContent = project.historical ? '正在查看历史，请切回当前目标后提交新需求。' : this.goalBlocked ? '当前目标正在推进，可在办公室补充执行要求；完成后可提交新需求。' : '描述你想实现的功能和完成标准。';
+    this.find('#goal-project-label').textContent = '可随时添加需求。按启用员工人数并发执行，超出容量的需求自动排队。';
     this.paint();
   }
   // openHost 打开独立全局配置，暂存目标表单的草稿与返回位置。
@@ -182,10 +182,10 @@ export class SetupFlow {
       const configureTeam = values.configureTeam === 'on', generateTeam = values.generateTeam === 'on';
       const created = await this.api(`/projects/${projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
       this.find('#goal-dialog').close();
-      this.drafts?.delete(projectId); if (this.projectId === projectId) form.reset(); button.textContent = '生成拆解预览'; await this.selectProject(created.id); await this.refresh();
+      this.drafts?.delete(projectId); if (this.projectId === projectId) form.reset(); button.textContent = '生成拆解预览'; await this.selectProject(created.id); if (this.selectGoal && created.viewed_goal_id) await this.selectGoal(created.viewed_goal_id); await this.refresh();
       if (generateTeam) { await this.buildTeam(created.id); }
       else if (configureTeam) { document.querySelector('#manage-employees').click(); this.toast('请配置员工，保存后点击继续执行开始规划'); }
-      else this.toast('正在生成拆解预览');
+      else this.toast(created.status === 'queued' ? '目标已加入等待队列' : '正在生成拆解预览');
     } catch (error) { this.find('#create-error').textContent = error.message; }
     finally { this.creating = false; this.paint(); }
   }

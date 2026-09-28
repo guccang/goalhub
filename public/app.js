@@ -12,7 +12,7 @@ const { GodPanel } = await import('./god.js');
 const { EmployeeManager } = await import('./employees.js');
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
-const labels = { ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
+const labels = { queued: '排队中', ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
 const roles = { 'team-builder': 'God 搭建团队', planner: '负责人规划', coordinator: '任务分配', developer: '员工执行', evaluator: '定时评估', 'final-review': '最终评估', test: '测试验收' };
 const hostLabels = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
 let selectedGoal = '', homeVisible = true;
@@ -28,7 +28,7 @@ const office = new OfficeView({ onAction: action, onError: toast,
   onSteer: async (id, content) => { await api(`/projects/${id}/steer`, { content }); await refresh(); toast('补充指令已记录，正在继续执行'); },
 });
 
-const setup = new SetupFlow({ api, selectProject, refresh, toast, buildTeam: async id => { await employees.open(id, { generate: true }); } });
+const setup = new SetupFlow({ api, selectProject, selectGoal, refresh, toast, buildTeam: async id => { await employees.open(id, { generate: true }); } });
 const panels = new ProjectsPanel({ api, selectProject, selectGoal, refresh, toast });
 
 // selectGoal 只切换查看目标，不改变项目当前执行目标。
@@ -79,7 +79,12 @@ function badge(status) { return `<span class="badge ${escape(status)}">${escape(
 // api 发起同源 JSON 请求并显式暴露失败原因。
 async function api(path, value) {
   // 固定点击时的请求内容，等待确认期间表单或项目切换不会修改本次提交。
-  if (value !== undefined) { value = structuredClone(value); await confirmModelRequest(path, value); }
+  if (value !== undefined) {
+    value = structuredClone(value);
+    // 固定操作目标，避免并发目标之间的问答、暂停和预览串线。
+    if (path.match(/^\/projects\/[^/]+\/(start|approve|pause|answer|evaluate|steer|plan|prompt-preview)$/) && path.split('/')[2] === selected && project?.active_goal_id) value.goalId ??= selectedGoal || project.active_goal_id;
+    await confirmModelRequest(path, value);
+  }
   const response = await fetch(`/api${path}`, value === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || '请求失败');
@@ -168,7 +173,7 @@ function renderProject() {
   $('#leader-records').hidden = !recordsOwner?.isLead;
   $('#project-title').textContent = project.name; document.title = homeVisible ? '办公室总览 · GoalHub' : `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
-  html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
+  html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'queued' ? '<button class="secondary" data-action="pause">暂停排队</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
   $('#project-actions').querySelectorAll('button').forEach((button) => { button.disabled = busy; });
   $('#goal-text').textContent = project.goal;
   const stage = project.status === 'completed' ? 4 : project.status === 'awaiting_approval' ? 2 : project.resume_phase === 'execute' ? 3 : 1;

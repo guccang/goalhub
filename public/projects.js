@@ -24,7 +24,7 @@ export class ProjectsPanel {
         plan.summary = values.get('summary');
         plan.tasks.forEach((task, i) => { task.title = values.get(`title-${i}`); task.description = values.get(`description-${i}`); task.doneWhen = values.get(`done-${i}`); task.assignee = values.get(`assignee-${i}`); });
         plan.checks.forEach((check, i) => { check.command = values.get(`command-${i}`); check.expectation = values.get(`expectation-${i}`); });
-        await api(`/projects/${this.editProject}/plan`, plan); $('#edit-plan-dialog').close(); await refresh();
+        await api(`/projects/${this.editProject}/plan`, { ...plan, goalId: this.project.active_goal_id }); $('#edit-plan-dialog').close(); await refresh();
       } catch (error) { $('#edit-plan-error').textContent = error.message; }
       finally { button.disabled = false; }
     });
@@ -37,11 +37,12 @@ export class ProjectsPanel {
   render(project) {
     this.project = project;
     const select = $('#iteration-select'), selected = project.viewed_goal_id || '';
-    const options = project.goals.map((goal, index) => `<option value="${goal.id}">${index + 1}. ${escape(goal.title)}${goal.status === 'completed' ? '（已完成）' : '（当前）'}</option>`).join('') || '<option value="">尚未提出需求</option>';
+    const options = project.goals.map((goal, index) => `<option value="${goal.id}">${index + 1}. ${escape(goal.title)}（${({ completed: '已完成', queued: '排队中', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', blocked: '阻断', waiting_input: '等待输入', awaiting_approval: '等待确认' })[goal.status] || goal.status}）</option>`).join('') || '<option value="">尚未提出需求</option>';
     if (select.innerHTML !== options) select.innerHTML = options;
     select.value = selected;
     $('#iteration-note').textContent = project.historical ? '正在查看历史迭代，执行控制已禁用。' : project.active_goal_id ? '目标共享项目仓库；下一次迭代继续协调者会话。' : '先提出需求，协调者将阅读项目并制定计划。';
-    $('#reset-session').disabled = !!project.active || !!project.historical;
+    if (project.queue) $('#iteration-note').textContent = `并发目标 ${project.queue.running} / ${project.queue.capacity} · 排队 ${project.queue.waiting.length}。每个目标独立开发，合并依次进行。`;
+    $('#reset-session').disabled = !!project.projectActive || !!project.active || !!project.historical;
     $('#project-repository').textContent = `${project.paths?.repo || project.repo_path || '受管项目目录'} · 主分支 ${project.main_branch}`;
     const sessions = project.sessions || [];
 

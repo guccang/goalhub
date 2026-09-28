@@ -71,3 +71,9 @@ test('提示词复制保留换行并反馈结果，不关闭确认框', async t 
   deny = true; await copy.onclick(); assert.match(status.textContent, /复制失败/); assert.equal(copy.disabled, false);
   f.cancel.onclick(); await pending;
 });
+
+// 等待确认期间保留目标编号，切换页面不会把请求路由到另一个目标。
+test('并发目标的调用确认保留目标编号', () => {
+  const result = previewRequest('/projects/project-id/start', { goalId: 'goal-id' });
+  assert.equal(result.value.goalId, 'goal-id');
+});
