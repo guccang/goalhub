@@ -2,15 +2,8 @@
 document.querySelector('#startup-retry').addEventListener('click', () => location.reload());
 try {
 // 本文件驱动目标工作台，定期读取 SQLite 状态并提供创建、问答、暂停和日志查询交互。
-// 提示词预览是可选增强；旧服务缺少新模块时仍须加载项目和绑定操作。
-const { installPromptPreviews, promptLink } = await import('./prompt-preview.js').catch(() => ({
-  promptLink: () => '',
-  // 旧服务下保留明确反馈，提示词预览不可用不影响项目操作。
-  installPromptPreviews: () => document.addEventListener('click', event => {
-    if (!event.target.closest('a[data-prompt]')) return;
-    event.preventDefault(); toast('当前服务尚未加载提示词预览功能，请重启本地 GoalHub 服务。');
-  }),
-}));
+// 调用确认是执行前的必要步骤，模块加载失败时不继续开放模型调用。
+const { installPromptPreviews, promptLink } = await import('./prompt-preview.js');
 const { ProjectsPanel } = await import('./projects.js');
 const { SetupFlow } = await import('./setup.js');
 const { OfficeView } = await import('./office-view.js');
@@ -43,7 +36,7 @@ async function selectGoal(id) { selectedGoal = id; historyMode = false; eventPro
 const deliveryPanel = new DeliveryPanel({ api, refresh, toast });
 const god = new GodPanel({ api, toast });
 const employees = new EmployeeManager({ api, refresh, toast });
-installPromptPreviews({ api, getProject: () => project, employees, setup });
+const confirmModelRequest = installPromptPreviews({ api, setup });
 
 // showEmployeeRecords 仅通过负责人打开项目档案，普通员工保留个人信息。
 function showEmployeeRecords(actor) {
@@ -85,6 +78,8 @@ function badge(status) { return `<span class="badge ${escape(status)}">${escape(
 
 // api 发起同源 JSON 请求并显式暴露失败原因。
 async function api(path, value) {
+  // 固定点击时的请求内容，等待确认期间表单或项目切换不会修改本次提交。
+  if (value !== undefined) { value = structuredClone(value); await confirmModelRequest(path, value); }
   const response = await fetch(`/api${path}`, value === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || '请求失败');

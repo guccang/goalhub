@@ -136,7 +136,7 @@ export class SetupFlow {
       for (const test of this.state?.tests || []) {
         const row = document.createElement('section'), output = document.createElement('pre'), link = document.createElement('a');
         output.textContent = `${test.created_at} · ${test.host_type} / ${test.model || '默认模型'} · ${test.status}\n输出：${test.output}`;
-        link.href = '#prompt-preview'; link.className = 'prompt-link'; link.dataset.prompt = 'host-history'; link.dataset.testId = test.id; link.textContent = '预览提示词'; link.setAttribute('aria-haspopup', 'dialog');
+        link.href = '#prompt-preview'; link.className = 'prompt-link'; link.dataset.prompt = 'host-history'; link.dataset.testId = test.id; link.textContent = '查看实际提示词'; link.setAttribute('aria-haspopup', 'dialog');
         row.append(link, output); history.append(row);
       }
       if (!this.state?.tests?.length) history.textContent = '暂无测试记录';

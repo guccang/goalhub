@@ -208,3 +208,20 @@ test('宿主连通性预览复用测试协议且不产生探测记录', async t 
   assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM host_tests').get().n, 0);
   assert.equal((await f.request('/host/prompt-preview', { reasoningEffort: 'invalid' })).status, 400);
 });
+// 操作确认展示对应阶段和实际输入草稿，预览不得修改项目或启动模型。
+test('调用确认按操作选择阶段，交付预览不保存配置或创建修复任务', async t => {
+  const f = await fixture(t), id = f.project.id, path = `/projects/${id}/prompt-preview`;
+  const planning = await f.request(path, { action: 'start' });
+  assert.equal(planning.value.entries.length, 1); assert.match(planning.value.entries[0].input, /你是规划 Agent/);
+  const evaluating = await f.request(path, { action: 'evaluate' });
+  assert.match(evaluating.value.entries[0].input, /定时进度/);
+  const config = { kind: 'source', instructions: '保存的说明' }; f.store.saveDelivery(id, config);
+  const delivery = await f.request(path, { action: 'delivery/build' });
+  assert.equal(delivery.value.entries.length, 1); assert.match(delivery.value.entries[0].input, /准备可使用的项目预览与交付/);
+  assert.match(delivery.value.entries[0].input, /此前人工交付设置/);
+  assert.deepEqual(f.store.project(id).settings.delivery, config); assert.equal(f.store.tasks(id).length, 0);
+  assert.equal(f.store.instructions(id).length, 0); assert.equal(f.calls.length, 0);
+  const newGoal = await f.request(path, { action: 'goals', role: 'planner', goal: '新的日历目标' });
+  assert.match(newGoal.value.entries[0].input, /新的日历目标/);
+  assert.equal(f.store.project(id).goal, f.project.goal);
+});
