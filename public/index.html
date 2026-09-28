@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- 本文件定义目标执行工作台、创建表单和完整轮次记录对话框。 -->
+<!-- 本文件定义办公室优先的工作台、内联需求表单和按需展开的运行记录。 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -34,12 +34,8 @@
       <div class="empty-process"><span>明确目标</span><b>›</b><span>拆解与开发</span><b>›</b><span>评估与修复</span><b>›</b><span>测试验收</span></div>
     </div>
     <section id="project" hidden>
-      <header class="project-header"><div><div class="breadcrumb">我的项目 <span>/</span> 执行工作台</div><h1 id="project-title"></h1><div class="header-meta"><span id="project-status"></span><span id="project-created"></span></div></div><div class="header-actions" id="project-actions"></div></header>
-      <section class="iteration-panel"><div class="iteration-toolbar"><label for="iteration-select">目标与迭代<select id="iteration-select"></select></label><button class="primary" data-action="new-goal" id="new-goal">提出需求</button></div><p id="iteration-note"></p><small id="project-repository"></small></section>
-      <details class="usage-panel"><summary id="usage-summary">项目上下文与用量</summary><p class="subtle">上下文容量按会话显示；累计用量按目标、项目汇总。未知表示宿主未上报，缓存读取已包含在输入中。</p><div id="session-metrics"></div><div class="table-scroll" id="project-usage"></div><details><summary>按日期、目标、角色和模型查看明细</summary><div class="table-scroll" id="project-usage-details"></div></details><button class="text-button" data-action="reset-session" id="reset-session">下次使用新会话（保留项目历史）</button></details>
+      <header class="project-header"><div><div class="breadcrumb">我的项目 <span>/</span> 执行工作台</div><h1 id="project-title"></h1><div class="header-meta"><span id="project-status"></span><span id="project-created"></span></div></div><div class="header-actions" id="project-actions"></div></header><p id="project-progress-summary" class="project-progress-summary" aria-live="polite"></p>
       <div class="workspace-mode" role="tablist" aria-label="工作区视图"><button role="tab" id="mode-office" data-mode="office" aria-selected="true" aria-controls="office-view">像素办公室</button><button role="tab" id="mode-dashboard" data-mode="dashboard" aria-selected="false" aria-controls="dashboard-view">任务与记录</button><span>角色状态与项目执行同步</span></div>
-      <section id="plan-preview" class="plan-preview" hidden></section>
-      <section id="question-panel" class="question-panel project-questions" hidden></section>
       <section id="office-view" class="office-view" role="tabpanel" aria-labelledby="mode-office">
         <div class="office-main">
           <div class="office-scene-card">
@@ -47,11 +43,11 @@
             <div class="office-canvas-wrap"><div id="office-canvas" role="img" aria-label="Munder Difflin 完整办公室。点击角色查看输出，点击看板、日历或时钟打开对应控制。"></div><p id="office-canvas-error" hidden></p></div>
             <div class="office-scene-footer"><div class="office-legend"><span><i class="working"></i>工作中</span><span><i class="success"></i>本轮结束</span><span><i class="blocked"></i>需要处理</span></div><div class="office-camera"><button data-office-camera="out" aria-label="缩小办公室">−</button><button data-office-camera="fit" aria-label="显示完整办公室">全景</button><button type="button" data-office-camera="expand" aria-label="展开办公室">展开</button><button data-office-camera="in" aria-label="放大办公室">＋</button><button data-office-camera="motion" id="office-motion" aria-pressed="false">减少动态</button></div></div>
           </div>
-          <div class="office-team-heading"><h3>项目员工</h3><button class="secondary" id="manage-employees">管理员工</button></div>
+          <details class="office-secondary"><summary>员工与运行输出</summary><div class="office-team-heading"><h3>项目员工</h3><button class="secondary" id="manage-employees">管理员工</button></div>
           <div id="office-roster" class="office-roster" role="group" aria-label="选择办公室角色"></div>
           <nav class="office-facilities" aria-label="办公室设施"><button data-office-place="tasks">任务看板</button><button data-office-place="meeting">会议桌</button><button data-office-role="test" id="office-test-station">测试工作站</button><button data-office-place="archive">档案柜</button></nav>
           <section class="office-terminal"><div class="office-terminal-heading"><h2 id="office-output-title">角色输出</h2><button id="office-full-run" class="text-button" disabled>查看完整输入输出</button></div><pre id="office-output" tabindex="0" aria-label="所选角色的运行输出">选择一个角色查看运行记录。</pre></section>
-          <div class="office-attribution">完整办公室场景来自 <a href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noreferrer">Munder Difflin</a><a href="/office-license.txt" target="_blank" rel="noreferrer">代码 MIT 许可</a><a href="https://limezu.itch.io/" target="_blank" rel="noreferrer">像素素材：LimeZu</a><a href="/office-engine/ASSET-LICENSE.txt" target="_blank">素材许可</a><span>工作状态来自真实记录；散步、喝咖啡为场景动画。</span></div>
+          </details><div class="office-attribution">完整办公室场景来自 <a href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noreferrer">Munder Difflin</a><a href="/office-license.txt" target="_blank" rel="noreferrer">代码 MIT 许可</a><a href="https://limezu.itch.io/" target="_blank" rel="noreferrer">像素素材：LimeZu</a><a href="/office-engine/ASSET-LICENSE.txt" target="_blank">素材许可</a><span>工作状态来自真实记录；散步、喝咖啡为场景动画。</span></div>
         </div>
         <aside class="office-controls">
           <div class="office-person"><canvas id="office-portrait" width="36" height="56" aria-hidden="true"></canvas><div><h2 id="office-agent-name">软件工程师</h2><span id="office-agent-status" class="office-state idle">待命</span></div></div>
@@ -60,10 +56,12 @@
           <div class="office-assignment"><span>当前状态</span><p id="office-agent-activity">等待任务分配</p><small id="office-agent-session"></small></div>
           <section class="office-control-section"><h3>项目控制</h3><div class="office-control-buttons"><button class="primary" id="office-run-control" data-office-control="start">继续执行</button><button class="secondary" id="office-review-control" data-office-control="evaluate">立即评估</button></div><p id="office-control-hint" class="office-help">控制作用于当前项目，角色会随真实状态更新。</p></section>
           <form id="office-steer-form" class="office-control-section"><label for="office-instruction">补充执行要求</label><textarea id="office-instruction" name="content" required maxlength="10000" rows="4" placeholder="例如：优先完成搜索功能，补充空结果与中文搜索测试。"></textarea><p class="office-help">保存当前进度，将补充要求交给 Agent，然后继续执行。</p><button type="submit" class="secondary full-width" id="office-send">发送指令并继续</button></form>
-          <section class="office-control-section"><h3>最近交接</h3><ol id="office-handoffs" class="office-handoffs"></ol></section>
+          <details class="office-instructions"><summary>最近交接</summary><ol id="office-handoffs" class="office-handoffs"></ol></details>
           <details class="office-instructions"><summary>已记录的补充指令 <span id="office-instruction-count">0</span></summary><div id="office-instruction-history"></div></details>
         </aside>
       </section>
+      <section id="plan-preview" class="plan-preview" hidden></section>
+      <section id="question-panel" class="question-panel project-questions" hidden></section>
       <div class="project-body" id="dashboard-view" role="tabpanel" aria-labelledby="mode-dashboard" hidden>
         <div class="main-column">
           <section class="goal-section"><div class="section-heading"><h2>目标</h2><button class="text-button" data-action="toggle-goal">展开详情</button></div><p id="goal-text" class="goal-text clamped"></p><div id="pipeline" class="pipeline"></div></section>
@@ -84,6 +82,26 @@
           <section class="inspector-section"><h2>运行设置</h2><dl id="settings-list" class="settings-list"></dl></section>
         </aside>
       </div>
+  <section id="create-dialog" class="goal-composer" aria-labelledby="composer-title">
+    <div class="dialog-header"><div><h2 id="composer-title">下一步，想做什么？</h2><p id="goal-project-label">在当前项目中继续迭代，协调者会阅读已有代码和历史上下文。</p></div></div>
+
+    <section id="setup-goal">
+      <form id="create-form">
+        <p id="iteration-note" class="setup-note" role="status"></p><fieldset id="goal-fields">
+        <label>目标标题（可选）<input name="name" maxlength="100" placeholder="例如：增加中文搜索" autocomplete="off"></label>
+        <label>目标与完成条件<textarea name="goal" required maxlength="30000" rows="5" placeholder="描述功能、约束和完成标准，规划 Agent 将生成任务与验收项目。"></textarea></label>
+        <details class="advanced"><summary>更多设置</summary><label>项目默认语言<select name="language"><option value="zh-CN">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option></select></label><label>计划确认方式<select name="confirmationMode"><option value="manual">人工确认：预览计划，确认后开始实现</option><option value="auto">自动确认：生成计划后自动开始实现</option></select></label>
+        <label class="inline-choice"><input name="generateTeam" type="checkbox">先由 God 一键搭建团队，再开始规划</label>
+        <label class="inline-choice"><input name="configureTeam" type="checkbox">先配置项目员工，再开始规划</label>
+        <details class="advanced"><summary>评估间隔与执行时限</summary><label>评估间隔（分钟）<input name="evaluationMinutes" type="number" min="0.1" max="1440" step="0.1" value="5" required></label><div class="form-grid"><label>单轮 Agent 时限（分钟）<input name="agentTimeoutMinutes" type="number" min="1" max="240" value="30" required></label><label>单项测试时限（秒）<input name="testTimeoutSeconds" type="number" min="5" max="3600" value="120" required></label></div></details>
+        </details><p id="selected-host" class="setup-note"></p><div class="create-note">默认先预览计划，确认后开始开发。</div>
+        <div id="create-error" class="form-error" role="alert"></div><div class="dialog-footer"><button type="button" class="secondary" id="back-host">管理全局宿主</button><button type="submit" class="primary">生成拆解预览</button></div>
+        </fieldset>
+      </form>
+    </section>
+  </section>
+      <section class="iteration-panel"><div class="iteration-toolbar"><label for="iteration-select">目标与迭代<select id="iteration-select"></select></label></div><details><summary>仓库信息</summary><small id="project-repository"></small></details></section>
+      <details class="usage-panel"><summary id="usage-summary">项目上下文与用量</summary><p class="subtle">上下文容量按会话显示；累计用量按目标、项目汇总。未知表示宿主未上报，缓存读取已包含在输入中。</p><div id="session-metrics"></div><div class="table-scroll" id="project-usage"></div><details><summary>按日期、目标、角色和模型查看明细</summary><div class="table-scroll" id="project-usage-details"></div></details><button class="text-button" data-action="reset-session" id="reset-session">下次使用新会话（保留项目历史）</button></details>
     </section>
   </main>
   <dialog id="employees-dialog" class="create-dialog setup-dialog team-dialog"><div class="dialog-header"><div><h2>项目团队</h2><p id="team-project-name"></p></div><button type="button" class="icon-button" data-close-employees aria-label="关闭员工管理">×</button></div>
@@ -118,23 +136,6 @@
       <div class="dialog-footer"><button class="primary" id="next-goal">完成</button></div>
     </section>
     <p id="host-error" class="form-error" role="alert"></p>
-  </dialog>
-  <dialog id="create-dialog" class="create-dialog setup-dialog">
-    <div class="dialog-header"><div><h2>提出需求</h2><p id="goal-project-label">在当前项目中继续迭代，协调者会阅读已有代码和历史上下文。</p></div><button type="button" class="icon-button" data-action="close-create" aria-label="关闭">×</button></div>
-
-    <section id="setup-goal">
-      <form id="create-form">
-        <p id="selected-host" class="setup-note"></p>
-        <label>目标标题（可选）<input name="name" maxlength="100" placeholder="例如：增加中文搜索" autocomplete="off"></label>
-        <label>目标与完成条件<textarea name="goal" required maxlength="30000" rows="5" placeholder="描述功能、约束和完成标准，规划 Agent 将生成任务与验收项目。"></textarea></label>
-        <label>项目默认语言<select name="language"><option value="zh-CN">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option></select></label><label>计划确认方式<select name="confirmationMode"><option value="manual">人工确认：预览计划，确认后开始实现</option><option value="auto">自动确认：生成计划后自动开始实现</option></select></label>
-        <label class="inline-choice"><input name="generateTeam" type="checkbox">先由 God 一键搭建团队，再开始规划</label>
-        <label class="inline-choice"><input name="configureTeam" type="checkbox">先配置项目员工，再开始规划</label>
-        <details class="advanced"><summary>评估间隔与执行时限</summary><label>评估间隔（分钟）<input name="evaluationMinutes" type="number" min="0.1" max="1440" step="0.1" value="5" required></label><div class="form-grid"><label>单轮 Agent 时限（分钟）<input name="agentTimeoutMinutes" type="number" min="1" max="240" value="30" required></label><label>单项测试时限（秒）<input name="testTimeoutSeconds" type="number" min="5" max="3600" value="120" required></label></div></details>
-        <div class="create-note">先生成拆解预览。缺少必要信息时会提问；人工确认前不会启动开发。本次目标沿用项目仓库与协调者会话，历史目标保留。</div>
-        <div id="create-error" class="form-error" role="alert"></div><div class="dialog-footer"><button type="button" class="secondary" id="back-host">管理全局宿主</button><button type="submit" class="primary">生成拆解预览</button></div>
-      </form>
-    </section>
   </dialog>
   <dialog id="register-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><div><h2>添加项目</h2><p>项目只添加一次，后续需求在项目中持续迭代。</p></div><button class="icon-button" data-action="close-register" aria-label="关闭">×</button></div><form id="register-form"><label>项目名称<input name="name" required maxlength="100" placeholder="例如：CodingHub"></label><label>项目来源<select name="mode"><option value="existing">接入已有 Git 仓库</option><option value="new">创建新项目（空目录）</option></select></label><label>本地目录<input name="path" maxlength="2000" placeholder="例如：E:\githubdesktop\codinghub"></label><p class="subtle">留空使用 GoalHub 受管目录。添加项目不会调用模型或启动开发。</p><label>项目上下文<textarea name="context" maxlength="20000" rows="3" placeholder="架构、需求背景与长期规范，可在项目团队中继续编辑"></textarea></label><p class="form-error" id="register-error"></p><button class="primary" type="submit">添加项目</button></form></dialog>
   <dialog id="global-dialog" class="create-dialog setup-dialog"><div class="dialog-header"><h2>全部项目用量</h2><button class="icon-button" data-action="close-global" aria-label="关闭">×</button></div><p>仅累计宿主实际上报的用量，未上报轮次不记为零；日期使用 UTC。此处不汇总各会话的上下文百分比。</p><div id="global-usage" class="table-scroll"></div></dialog>
