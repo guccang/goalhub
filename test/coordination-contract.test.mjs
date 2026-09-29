@@ -53,7 +53,7 @@ test('主管修正前置时自动重规划，再实施验收，不将修复当�
 });
 
 test('重规划有界，连续请求不会无限消耗规划调用', async t => {
-  const f = fixture(t, 'replan'), control = { id: f.project.id, coordinationReplans: 1 };
+  const f = fixture(t, 'replan'), control = { id: f.project.id, coordinationReplans: 3 };
   assert.equal(await f.engine.dispatch(control, f.store.tasks(f.project.id)[0], '.'), null);
   assert.equal(control.replanRequested, undefined);
   assert.equal(f.store.project(f.project.id).status, 'blocked');
@@ -96,4 +96,16 @@ import { validatePlan } from '../lib/protocol.mjs';
 test('规划阶段拒绝最终验收不允许的审查与构建共用规则', () => {
   const tasks = ['development', 'review'].map((requiredCapability, index) => ({ id: String(index), title: requiredCapability, description: '验证目标', assignee: requiredCapability, requiredCapability, checkIds: ['shared'] }));
   assert.throws(() => validatePlan(JSON.stringify({ summary: '计划', tasks, checks: [{ id: 'shared', title: '混用规则', command: 'verify', expectation: '通过' }] })), /不能与非审查任务共用/);
+});
+
+test('新的独立故障允许再次重规划，同一故障不能重复空转', async t => {
+  const f = fixture(t, 'replan'), control = { id: f.project.id }, task = f.store.tasks(f.project.id)[0];
+  await f.engine.dispatch(control, task, '.');
+  assert.ok(control.replanRequested); delete control.replanRequested;
+  f.engine.agent = async () => JSON.stringify({ action: 'replan', summary: '安装证据被覆盖', reason: '先生成再复核封存，最后只读校验' });
+  await f.engine.dispatch(control, task, '.');
+  assert.ok(control.replanRequested); delete control.replanRequested;
+  await f.engine.dispatch(control, task, '.');
+  assert.equal(control.replanRequested, undefined);
+  assert.equal(f.store.project(f.project.id).status, 'blocked');
 });
