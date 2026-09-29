@@ -1,7 +1,7 @@
 // 本文件验证职业模板的能力约束、草稿隔离及真实存储往返。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { roleTemplates, applyRoleTemplate } from '../public/role-templates.js';
+import { roleTemplates, applyRoleTemplate } from '../public/employees.js';
 import { team, validateTeam, validateAssignments } from '../lib/employees.mjs';
 import { Store } from '../lib/store.mjs';
 
