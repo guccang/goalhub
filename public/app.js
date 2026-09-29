@@ -28,7 +28,7 @@ const { GodPanel } = await import('./god.js');
 const { EmployeeManager } = await import('./employees.js');
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
-const labels = { queued: '排队中', ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '遇到阻断', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
+const labels = { queued: '排队中', ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '执行受阻，待处理', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
 const roles = { 'team-builder': 'God 搭建团队', planner: '负责人规划', coordinator: '任务分配', developer: '员工执行', evaluator: '定时评估', 'final-review': '最终评估', test: '测试验收' };
 const hostLabels = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
 let selectedGoal = '', homeVisible = true;
@@ -176,6 +176,21 @@ function renderQuestions() {
   $('#question-panel').innerHTML = pending.length ? `<h2>需要你补充信息</h2><p>${escape(project.summary)}</p><p>回答后会自动继续，已有进度和原目标会保留。</p><form id="answer-form">${pending.map((question, index) => `<label>${index + 1}. ${escape(question.prompt)}<textarea name="${question.id}" required maxlength="10000" rows="2" placeholder="填写回答"></textarea></label>`).join('')}<button class="primary" type="submit">提交回答并继续</button>${promptLink('answers')}</form>` : '';
 }
 
+// renderBlocker 展示阻断证据和恢复选择，不将重新启动误称为问题已解决。
+function renderBlocker() {
+  const panel = $('#blocker-panel');
+  panel.hidden = project.status !== 'blocked';
+  if (panel.hidden) return;
+  $('#blocker-reason').textContent = project.summary || '执行未能继续，请检查最近运行记录。';
+  const checks = project.checks.filter(check => check.status !== 'passed' && check.output);
+  html('#blocker-evidence', checks.map(check => `<details><summary>${escape(check.title)}</summary><p><code>${escape(check.command)}</code></p><pre>${escape(check.output)}</pre></details>`).join('') || '<p>暂无失败验收输出，请查看输入与输出中的最近失败轮次。</p>');
+  $('#blocker-timeout').textContent = `当前每条验收命令的总时限为 ${project.settings.testTimeoutSeconds} 秒；命令内包含多项测试时，共用这个时限。`;
+  // 定期刷新仅更新证据，保留用户正在输入的修复要求；切换目标时清空。
+  const owner = `${project.id}:${project.active_goal_id}`;
+  if (panel.dataset.owner !== owner) { $('#blocker-instruction').value = ''; panel.dataset.owner = owner; }
+  panel.querySelectorAll('button, textarea').forEach(control => { control.disabled = busy || !!project.historical || project.active; });
+}
+
 // renderProject 更新任务与证据区域，保留用户打开的测试详情。
 function renderProject() {
   $('#office-home').hidden = !homeVisible || !projects.length;
@@ -189,7 +204,7 @@ function renderProject() {
   $('#leader-records').hidden = !recordsOwner?.isLead;
   $('#project-title').textContent = project.name; document.title = homeVisible ? '办公室总览 · GoalHub' : `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
-  html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'queued' ? '<button class="secondary" data-action="pause">暂停排队</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
+  html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'queued' ? '<button class="secondary" data-action="pause">暂停排队</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['blocked', 'waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'blocked' ? '查看原因并处理' : project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
   $('#project-actions').querySelectorAll('button').forEach((button) => { button.disabled = busy; });
   $('#goal-text').textContent = project.goal;
   const stage = project.status === 'completed' ? 4 : project.status === 'awaiting_approval' ? 2 : project.resume_phase === 'execute' ? 3 : 1;
@@ -200,7 +215,8 @@ function renderProject() {
   $('#show-office-on-home').checked = projects.find(item => item.id === project.id)?.settings.showOfficeOnHome !== false;
   renderQuestions();
   renderPlanPreview();
-  if ($('#plan-preview').hidden && $('#question-panel').hidden && $('#attention-dialog').open) closePanel('attention-dialog');
+  renderBlocker();
+  if ($('#blocker-panel').hidden && $('#plan-preview').hidden && $('#question-panel').hidden && $('#attention-dialog').open) closePanel('attention-dialog');
   $('#task-count').textContent = project.tasks.length ? `${project.tasks.filter((task) => task.status === 'done').length}/${project.tasks.length}` : '';
   const openedTasks = new Set([...document.querySelectorAll('#task-list details[open]')].map((item) => item.dataset.task));
   const taskCards = project.tasks.map((task, index) => `<article class="task-item"><span class="task-marker ${task.status}">${task.status === 'done' ? '✓' : task.status === 'running' ? '›' : index + 1}</span><div class="task-content"><div class="task-heading"><h3>${escape(task.title)}</h3>${project.queue?.assignments?.find(item => item.goalId === project.active_goal_id && item.employeeId === task.assignee && item.waiting) ? `<span class="badge">等待员工空闲</span>` : badge(task.status)}</div><p>${escape(task.description)}</p><div class="task-meta"><span>执行员工：${escape(project.settings.employees?.find(employee => employee.id === task.assignee)?.name || task.assignee || '等待负责人分配')}</span><span>${escape((task.depends_on || []).map(id => project.tasks.find(item => item.id === id)).filter(item => item && item.status !== 'done').map(item => '等待：' + item.title).join('；') || '前置任务已满足')}</span><span>${task.check_ids.length} 项验收</span>${promptLink(task.assignee ? 'developer' : 'coordinator', `data-task-id="${escape(task.id)}"`)}${task.attempts ? `<span>已执行 ${task.attempts} 轮</span>` : ''}</div>${task.result ? `<details data-task="${task.id}" ${openedTasks.has(task.id) ? 'open' : ''}><summary>最近执行结果</summary><p>${escape(task.result)}</p></details>` : ''}</div></article>`);
@@ -308,7 +324,7 @@ async function selectProject(id) {
 async function action(name) {
   if (name === 'home') { homeVisible = true; closePanel('sidebar'); renderHome(); renderProject(); document.title = '办公室总览 · GoalHub'; return; }
   // 顶部直接定位需要用户处理的内容，避免长页面遗漏待办。
-  if (name === 'attention') { openPanel('attention-dialog'); const panel = $(project.status === 'waiting_input' ? '#question-panel' : '#plan-preview'); panel.scrollIntoView({ block: 'center' }); panel.querySelector('textarea, button')?.focus({ preventScroll: true }); return; }
+  if (name === 'attention') { openPanel('attention-dialog'); const panel = $(project.status === 'blocked' ? '#blocker-panel' : project.status === 'waiting_input' ? '#question-panel' : '#plan-preview'); panel.scrollIntoView({ block: 'center' }); panel.querySelector('textarea, button')?.focus({ preventScroll: true }); return; }
   if (name === 'employee-details') { office.select(office.selected); return; }
   if (name === 'manage-team') { $('#project-tools').open = false; await employees.open(selected); return; }
   if (name === 'new') { panels.open(); return; }
@@ -327,10 +343,10 @@ async function action(name) {
   if (!selected || busy || project?.historical) return;
   busy = true;
   try {
-    const id = selected;
+    const id = selected, retrying = name === 'start' && project.status === 'blocked';
     $('#project-actions').querySelectorAll('button').forEach((button) => { button.disabled = true; });
     await api(`/projects/${id}/${name}`, {});
-    toast({ pause: '已暂停，进度已保留', start: '已继续执行', evaluate: '已安排进度评估' }[name] || '操作完成');
+    toast({ pause: '已暂停，进度已保留', start: retrying ? '已按原配置重新尝试，结果以验收记录为准' : '已继续执行', evaluate: '已安排进度评估' }[name] || '操作完成');
   } finally { busy = false; await refresh(); }
 }
 
@@ -369,6 +385,19 @@ document.addEventListener('submit', async (event) => {
     const answers = [...new FormData(event.target)].map(([id, answer]) => ({ id, answer }));
     await api(`/projects/${selected}/answer`, { answers }); await refresh(); toast('回答已记录，继续执行');
   } catch (error) { toast(error.message); button.disabled = false; }
+});
+
+// submitBlocker 把修复要求交给原目标，保留已有源码与失败证据再重试。
+$('#blocker-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (busy || project?.historical || project?.status !== 'blocked') return;
+  const content = $('#blocker-instruction').value.trim();
+  if (!content) { $('#blocker-instruction').focus(); return; }
+  const id = selected;
+  busy = true; renderBlocker();
+  try { await api(`/projects/${id}/steer`, { content }); toast('修复要求已记录，正在重新尝试'); }
+  catch (error) { toast(error.message); }
+  finally { busy = false; await refresh(); }
 });
 
 // searchEvents 应用关键字和类型筛选，并恢复最新记录查询。
