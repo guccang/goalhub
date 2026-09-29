@@ -1,6 +1,7 @@
 // 本文件管理项目员工草稿，以人物选择、职位定义和负责人设置完成组队。
 // 预览模块缺失时隐藏增强入口，员工管理和主页面继续工作。
 const { promptLink } = await import('./prompt-preview.js').catch(() => ({ promptLink: () => '' }));
+import { roleTemplates, applyRoleTemplate } from './role-templates.js';
 import { attachModelPicker } from './model-picker.js';
 import { paintPortrait } from './vendor/munder-difflin/portrait-art.js';
 const hosts = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
@@ -43,14 +44,18 @@ export class EmployeeManager {
     });
     this.detail.addEventListener('input', event => {
       const employee = this.current(), input = event.target;
-      if (!employee || !input.name || ['isLead', 'enabled', 'hostType', 'capability'].includes(input.name)) return;
+      if (!employee || !input.name || ['isLead', 'enabled', 'hostType', 'capability', 'roleTemplate'].includes(input.name)) return;
       employee[input.name] = input.type === 'number' ? Number(input.value) : input.value;
       if (input.name === 'position') this.renderList();
     });
     this.detail.addEventListener('change', event => {
       const employee = this.current(), input = event.target;
       if (!employee) return;
-      if (input.name === 'capability') {
+      if (input.name === 'roleTemplate') {
+        const template = roleTemplates.find(item => item.id === input.value);
+        this.detail.querySelector('[data-template-preview]').textContent = template?.instructions || '';
+        this.detail.querySelector('[data-apply-template]').disabled = !template;
+      } else if (input.name === 'capability') {
         employee.capabilities = [...this.detail.querySelectorAll('[name=capability]:checked')].map(field => field.value);
       } else if (input.name === 'isLead') {
         this.employees.forEach(item => { item.isLead = input.checked && item.id === employee.id; });
@@ -65,6 +70,11 @@ export class EmployeeManager {
       }
     });
     this.detail.addEventListener('click', event => {
+      if (event.target.closest('[data-apply-template]')) {
+        const employee = this.current(); this.templateUndo = { id: employee.id, position: employee.position, capabilities: [...(employee.capabilities || [])], instructions: employee.instructions, instructionsVersion: employee.instructionsVersion };
+        Object.assign(employee, applyRoleTemplate(employee, this.detail.querySelector('[name=roleTemplate]').value)); this.render(); this.toast('职业模板已填入草稿，可编辑后保存');
+      }
+      if (event.target.closest('[data-undo-template]') && this.templateUndo?.id === this.current()?.id) { Object.assign(this.current(), this.templateUndo); this.templateUndo = null; this.render(); }
       const character = event.target.closest('[data-character]');
       if (character) { const employee = this.current(); employee.character = character.dataset.character; this.render(); }
       if (event.target.closest('[data-remove-employee]')) { this.employees = this.employees.filter(item => item.id !== this.selected); this.selected = this.employees[0]?.id; this.render(); }
@@ -78,7 +88,7 @@ export class EmployeeManager {
   async open(id, { generate = false } = {}) {
     const version = this.openVersion = (this.openVersion || 0) + 1;
     clearTimeout(this.pollTimer); this.autoApplyId = null; this.appliedId = null; this.beforeGeneration = null; this.startingGeneration = false;
-    this.projectId = id; this.dialog.querySelector('#employee-error').textContent = '';
+    this.templateUndo = null; this.projectId = id; this.dialog.querySelector('#employee-error').textContent = '';
     try {
       const [value, projects] = await Promise.all([this.api(`/projects/${id}/employees`), this.api('/projects')]);
       if (this.openVersion !== version) return;
@@ -168,6 +178,7 @@ export class EmployeeManager {
     if (!employee) { this.detail.innerHTML = '<p class="employee-empty">每位员工都有自己的职位、宿主和工作记录。点击“添加员工”开始配置。</p>'; return; }
     this.detail.innerHTML = `<div class="employee-identity"><canvas width="36" height="56" data-portrait="${escape(employee.character)}" aria-hidden="true"></canvas><div><h3>${escape(employee.name)}</h3><p>人物与姓名保持一致，工作内容由下方职位定义。</p></div></div>
       <details class="character-picker"><summary>选择人物形象</summary><div class="character-grid">${this.characters.map(character => `<button type="button" data-character="${escape(character)}" aria-pressed="${employee.character === character}"><canvas width="36" height="56" data-portrait="${escape(character)}" aria-hidden="true"></canvas><span>${escape(this.characterNames[character])}</span></button>`).join('')}</div></details>
+      <fieldset><legend>默认职业模板</legend><label>选用规范<select name="roleTemplate"><option value="">选择模板，先查看规范</option>${roleTemplates.map(template => `<option value="${template.id}">${escape(template.name)}</option>`).join('')}</select></label><p data-template-preview class="setup-note"></p><p class="setup-note">应用会替换当前草稿的职位、能力和长期职责，保存团队后生效。负责人身份和模型设置保持不变。</p><button type="button" class="secondary" data-apply-template disabled>应用模板</button>${this.templateUndo?.id === employee.id ? '<button type="button" class="secondary" data-undo-template>撤销应用模板</button>' : ''}</fieldset>
       <label>职位名称<input name="position" value="${escape(employee.position)}" maxlength="100" placeholder="例如：Unity 客户端开发"></label>
       <fieldset><legend>可承担的工作（主管兼任开发需显式勾选）</legend>${Object.entries({development:'开发',testing:'测试',design:'设计',review:'审查',documentation:'文档',coordination:'协调'}).map(([value,label]) => `<label class="inline-choice"><input type="checkbox" name="capability" value="${value}" ${(employee.capabilities || []).includes(value) ? 'checked' : ''}>${label}</label>`).join('')}</fieldset>
       <label>长期职责<textarea name="instructions" maxlength="4000" rows="4" placeholder="跨目标复用的职责和质量标准；具体功能与验收要求填写在项目目标中">${escape(employee.instructions)}</textarea></label>
