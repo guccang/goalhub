@@ -151,3 +151,21 @@ test('旧交付与人工设置明确分离，验证端口冲突不触发员工�
     assert.equal(f.manager.snapshot(f.project.id).config, null);
   } finally { await new Promise(resolve => occupied.close(resolve)); }
 });
+
+// BOM 回归使用完整构建入口，确保兼容 Windows 文件且仍验证真实产物。
+test('Windows UTF-8 BOM 交付配置可构建，损坏 JSON 保留真实原因', async t => {
+  const manifest = { kind: 'desktop', build: 'node build.mjs', verify: 'node verify.mjs', artifacts: ['dist/App.exe'], instructions: '测试安装产物' };
+  const f = await fixture(t, manifest);
+  writeFileSync(join(f.paths.work, 'goalhub.delivery.json'), '\uFEFF' + JSON.stringify(manifest));
+  await f.git.checkpoint(f.project.id, 'test BOM configuration');
+  const id = await f.manager.prepare(f.project.id, f.paths.work);
+  assert.equal(f.manager.row(id).status, 'verified');
+  assert.match(f.manager.row(id).log, /VERIFY_OK/);
+  writeFileSync(join(f.paths.work, 'goalhub.delivery.json'), '\uFEFF{broken');
+  await assert.rejects(f.manager.prepare(f.project.id, f.paths.work), error => {
+    assert.match(error.message, /读取 goalhub.delivery.json 失败/);
+    assert.ok(error.cause instanceof SyntaxError);
+    assert.ok(error.message.includes(f.paths.work));
+    return true;
+  });
+});
