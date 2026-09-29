@@ -41,7 +41,7 @@ export class ProjectsPanel {
     if (select.innerHTML !== options) select.innerHTML = options;
     select.value = selected;
     $('#iteration-note').textContent = project.historical ? '正在查看历史迭代，执行控制已禁用。' : project.active_goal_id ? '目标共享项目仓库；下一次迭代继续协调者会话。' : '先提出需求，协调者将阅读项目并制定计划。';
-    if (project.queue) $('#iteration-note').textContent = `并发目标 ${project.queue.running} / ${project.queue.capacity} · 排队 ${project.queue.waiting.length}。每个目标独立开发，合并依次进行。`;
+    if (project.queue) $('#iteration-note').textContent = `并发目标 ${project.queue.running} / ${project.queue.capacity} · 排队 ${project.queue.waiting.length}。${(project.queue.assignments || []).map(item => item.label).join('；')}。每个目标独立开发，合并依次进行。`;
     $('#reset-session').disabled = !!project.projectActive || !!project.active || !!project.historical;
     $('#project-repository').textContent = `${project.paths?.repo || project.repo_path || '受管项目目录'} · 主分支 ${project.main_branch}`;
     const sessions = project.sessions || [];
@@ -68,7 +68,7 @@ export class ProjectsPanel {
   // edit 将结构化计划映射成业务表单，避免要求用户编辑协议 JSON。
   edit() {
     const p = this.project; this.editProject = p.id;
-    this.editPlan = { summary: p.summary, tasks: p.tasks.map(task => ({ id: task.id, title: task.title, description: task.description, doneWhen: task.done_when, assignee: task.assignee, dependsOn: task.depends_on, checkIds: task.check_ids })), checks: p.checks.map(check => ({ id: check.id, title: check.title, command: check.command, expectation: check.expectation })) };
+    this.editPlan = { summary: p.summary, tasks: p.tasks.map(task => ({ id: task.id, title: task.title, description: task.description, doneWhen: task.done_when, assignee: task.assignee, requiredCapability: task.required_capability, dependsOn: task.depends_on, checkIds: task.check_ids })), checks: p.checks.map(check => ({ id: check.id, title: check.title, command: check.command, expectation: check.expectation })) };
     $('#edit-plan-fields').innerHTML = `<label>总体计划<textarea name="summary" required rows="4">${escape(p.summary)}</textarea></label>${this.editPlan.tasks.map((task, i) => `<fieldset><legend>任务 ${i + 1}</legend><label>名称<input name="title-${i}" required value="${escape(task.title)}"></label><label>执行员工<select name="assignee-${i}" required>${p.settings.employees.filter(employee => employee.enabled).map(employee => `<option value="${escape(employee.id)}" ${employee.id === task.assignee ? 'selected' : ''}>${escape(employee.name)} · ${escape(employee.position || '未定义职位')}</option>`).join('')}</select></label><label>具体工作<textarea name="description-${i}" required>${escape(task.description)}</textarea></label><label>完成条件<textarea name="done-${i}" required>${escape(task.doneWhen)}</textarea></label></fieldset>`).join('')}${this.editPlan.checks.map((check, i) => `<fieldset><legend>${escape(check.title)}</legend><label>验收命令<input name="command-${i}" required value="${escape(check.command)}"></label><label>通过条件<textarea name="expectation-${i}" required>${escape(check.expectation)}</textarea></label></fieldset>`).join('')}`;
     $('#edit-plan-error').textContent = ''; $('#edit-plan-dialog').showModal();
   }

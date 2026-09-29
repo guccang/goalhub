@@ -86,7 +86,7 @@ export class OfficeView {
     this.find('#office-connection').textContent = `已同步 ${time(project.office.synchronizedAt)}`;
     this.find('#office-connection').classList.remove('offline');
     const progress = project.office.progress;
-    this.find('#office-progress').textContent = project.queue ? `并发 ${project.queue.running}/${project.queue.capacity} · 排队 ${project.queue.waiting.length}${project.queue.awaitingApproval?.length ? ` · 待确认 ${project.queue.awaitingApproval.length}` : ''} · 任务 ${progress.done}/${progress.total}` : `任务 ${progress.done}/${progress.total} · 测试 ${progress.passed}/${progress.checks} 通过`;
+    this.find('#office-progress').textContent = project.queue ? `推进目标 ${project.queue.running}/${project.queue.capacity} · 工作员工 ${new Set((project.queue.assignments || []).filter(item => !item.waiting).map(item => item.employeeId)).size} · 排队 ${project.queue.waiting.length}${project.queue.awaitingApproval?.length ? ` · 待确认 ${project.queue.awaitingApproval.length}` : ''} · 任务 ${progress.done}/${progress.total}` : `任务 ${progress.done}/${progress.total} · 测试 ${progress.passed}/${progress.checks} 通过`;
     this.renderRoster(); this.renderActor(); this.renderControls(); this.renderHistory();
   }
 
@@ -166,7 +166,7 @@ export class OfficeView {
     this.find('#office-instruction').disabled = pending || locked;
     this.find('#office-send').disabled = pending || locked;
     this.find('#office-send').textContent = this.sending ? '正在保存并重新调度…' : '发送指令并继续';
-    this.find('#office-control-hint').textContent = ['waiting_input', 'awaiting_approval'].includes(project.status) ? '点击上方按钮处理当前目标；其他目标可在下方目标列表切换查看。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : '控制作用于当前选中的目标。减少动态只影响画面，不会暂停 Agent。';
+    this.find('#office-control-hint').textContent = ['waiting_input', 'awaiting_approval'].includes(project.status) ? '点击上方按钮处理当前目标；其他目标可在下方目标列表切换查看。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : (project.queue?.assignments?.filter(item => item.goalId === project.active_goal_id).map(item => item.label).join('；') || '控制作用于当前选中的目标。减少动态只影响画面，不会暂停 Agent。');
   }
 
   // renderHistory 展示真实交接与已持久化的补充指令。

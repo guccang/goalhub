@@ -34,7 +34,7 @@ export class EmployeeManager {
     this.dialog.querySelector('#add-employee').onclick = () => {
       if (this.employees.length >= 15) return;
       const character = this.characters.find(name => !this.employees.some(employee => employee.character === name)) || this.characters[0];
-      const employee = { id: crypto.randomUUID(), name: this.characterNames[character], position: '', character, isLead: false, enabled: true, hostType: 'codex', model: '', reasoningEffort: '', timeoutMinutes: 30, instructionsVersion: 2, instructions: '', nativeLanguage: '' };
+      const employee = { id: crypto.randomUUID(), name: this.characterNames[character], position: '', capabilities: ['development'], character, isLead: false, enabled: true, hostType: 'codex', model: '', reasoningEffort: '', timeoutMinutes: 30, instructionsVersion: 2, instructions: '', nativeLanguage: '' };
       this.employees.push(employee); this.selected = employee.id; this.render();
     };
     this.list.addEventListener('click', event => {
@@ -43,14 +43,16 @@ export class EmployeeManager {
     });
     this.detail.addEventListener('input', event => {
       const employee = this.current(), input = event.target;
-      if (!employee || !input.name || ['isLead', 'enabled', 'hostType'].includes(input.name)) return;
+      if (!employee || !input.name || ['isLead', 'enabled', 'hostType', 'capability'].includes(input.name)) return;
       employee[input.name] = input.type === 'number' ? Number(input.value) : input.value;
       if (input.name === 'position') this.renderList();
     });
     this.detail.addEventListener('change', event => {
       const employee = this.current(), input = event.target;
       if (!employee) return;
-      if (input.name === 'isLead') {
+      if (input.name === 'capability') {
+        employee.capabilities = [...this.detail.querySelectorAll('[name=capability]:checked')].map(field => field.value);
+      } else if (input.name === 'isLead') {
         this.employees.forEach(item => { item.isLead = input.checked && item.id === employee.id; });
         if (input.checked) employee.enabled = true;
         this.render();
@@ -167,6 +169,7 @@ export class EmployeeManager {
     this.detail.innerHTML = `<div class="employee-identity"><canvas width="36" height="56" data-portrait="${escape(employee.character)}" aria-hidden="true"></canvas><div><h3>${escape(employee.name)}</h3><p>人物与姓名保持一致，工作内容由下方职位定义。</p></div></div>
       <details class="character-picker"><summary>选择人物形象</summary><div class="character-grid">${this.characters.map(character => `<button type="button" data-character="${escape(character)}" aria-pressed="${employee.character === character}"><canvas width="36" height="56" data-portrait="${escape(character)}" aria-hidden="true"></canvas><span>${escape(this.characterNames[character])}</span></button>`).join('')}</div></details>
       <label>职位名称<input name="position" value="${escape(employee.position)}" maxlength="100" placeholder="例如：Unity 客户端开发"></label>
+      <fieldset><legend>可承担的工作（主管兼任开发需显式勾选）</legend>${Object.entries({development:'开发',testing:'测试',design:'设计',review:'审查',documentation:'文档',coordination:'协调'}).map(([value,label]) => `<label class="inline-choice"><input type="checkbox" name="capability" value="${value}" ${(employee.capabilities || []).includes(value) ? 'checked' : ''}>${label}</label>`).join('')}</fieldset>
       <label>长期职责<textarea name="instructions" maxlength="4000" rows="4" placeholder="跨目标复用的职责和质量标准；具体功能与验收要求填写在项目目标中">${escape(employee.instructions)}</textarea></label>
       ${employee.legacyInstructions ? `<details><summary>历史职位说明（已停用，仅供参考）</summary><p>${escape(employee.legacyPosition)}</p><pre>${escape(employee.legacyInstructions)}</pre></details>` : ''}
       <div class="employee-choices"><label class="inline-choice"><input type="checkbox" name="isLead" ${employee.isLead ? 'checked' : ''}>设为项目负责人</label><label class="inline-choice"><input type="checkbox" name="enabled" ${employee.enabled ? 'checked' : ''}>参与执行</label></div>
