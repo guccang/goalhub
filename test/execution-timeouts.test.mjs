@@ -89,13 +89,18 @@ test('缺失员工时限的旧数据继承项目默认值，显式无效员工�
   for (const timeoutMinutes of [undefined, 0, NaN, Infinity, 241, '30']) assert.throws(() => executionTimeoutMs({ timeoutMinutes }), /处理时限/);
 });
 
-test('宿主探测独立时限可保存，拒绝非法配置且重启读取不丢失', async t => {
+test('全局工作沿用管理者员工超时，忽略旧宿主专属时限', async t => {
   const f = fixture(t);
   const runtime = { dataDir: '.', async load() { return { saveHostSettings() {}, inspectHostSettings() { return {}; } }; } };
   const setup = new HostSetup(f.store, runtime);
   await setup.save({ hostType: 'claudecode', model: '', probeTimeoutMinutes: 7 });
-  assert.equal(setup.profile().probeTimeoutMinutes, 7);
-  assert.equal((await setup.snapshot()).hosts.find(host => host.hostType === 'claudecode').probeTimeoutMinutes, 7);
-  for (const value of [0, 241, '7', NaN]) await assert.rejects(setup.save({ hostType: 'claudecode', model: '', probeTimeoutMinutes: value }), /测试时限/);
-  assert.equal(new HostSetup(f.store, runtime).profile().probeTimeoutMinutes, 7);
+  assert.equal(setup.profile().probeTimeoutMinutes, undefined);
+  setup.god.save({ ...setup.god.profile(false), timeoutMinutes: 11 });
+  assert.equal(executionTimeoutMs(setup.god.profile()), 11 * 60000);
+  assert.equal((await setup.snapshot()).hosts.find(host => host.hostType === 'claudecode').probeTimeoutMinutes, undefined);
+  const restored = new HostSetup(f.store, runtime);
+  assert.equal(restored.god.profile().timeoutMinutes, 11);
+  f.store.db.prepare('UPDATE host_profile SET value=? WHERE id=1').run(JSON.stringify({ ...restored.profile(), probeTimeoutMinutes: 1 }));
+  assert.equal(restored.profile().probeTimeoutMinutes, undefined);
+  assert.equal(executionTimeoutMs(restored.god.profile()), 11 * 60000);
 });

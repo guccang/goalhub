@@ -202,7 +202,7 @@ export class EmployeeManager {
       <p class="setup-note">负责人理解目标、分配任务、跟进结果和核对交付。员工配置仅作用于本项目。</p>
       <div class="employee-grid"><label>执行宿主<select name="hostType">${options(hosts, employee.hostType)}</select></label><label>模型<input name="model" value="${escape(employee.model)}" maxlength="150"></label>
       <label>思考强度<select name="reasoningEffort" ${employee.hostType !== 'codex' ? 'disabled' : ''}>${options({ '': employee.hostType === 'codex' ? '模型默认' : '此宿主暂不支持', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }, employee.reasoningEffort)}</select></label>
-      <label>处理时限（分钟，含开发与验收）<input type="number" name="timeoutMinutes" min="1" max="240" value="${employee.timeoutMinutes}" required></label>
+      <label>超时（分钟）<input type="number" name="timeoutMinutes" min="1" max="240" value="${employee.timeoutMinutes}" required></label>
       <label>员工母语<select name="nativeLanguage">${options({ '': '继承项目语言', ...this.languages }, employee.nativeLanguage || '')}</select></label></div>
       ${promptLink('employee')}<button class="secondary employee-remove" type="button" data-remove-employee>移除此员工</button>`;
     this.paint(this.detail);
