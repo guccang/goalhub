@@ -669,6 +669,29 @@ button {
   font-size: 12px;
   margin-top: 2px;
 }
+/* 反馈按决定、背景、选项排列，复用现有蓝色和琥珀色语义，保持窄屏可读。 */
+.feedback-question { border: 0; border-top: 1px solid var(--line); padding: 20px 0; margin: 24px 0 0; min-width: 0; }
+.feedback-question legend { color: var(--ink); font-size: 18px; line-height: 1.6; font-weight: 650; padding: 0 0 10px; width: 100%; overflow-wrap: anywhere; }
+.feedback-number { display: block; color: var(--muted); font-size: 12px; font-weight: 400; margin-bottom: 6px; }
+.feedback-question dl, .feedback-context { margin: 12px 0 20px; }
+.feedback-fact { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; margin: 12px 0; font-size: 14px; line-height: 1.7; }
+.feedback-fact dt { color: var(--muted); }
+.feedback-fact dd { margin: 0; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.feedback-options { display: grid; gap: 10px; margin: 18px 0; }
+.question-panel .feedback-option { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; margin: 0; }
+.feedback-option:has(input:checked) { border-color: var(--blue); background: #f3f6ff; }
+.feedback-option input { width: 18px; min-width: 18px; height: 18px; margin: 3px 0; accent-color: var(--blue); }
+.feedback-option strong { font-size: 14px; color: var(--ink); }
+.feedback-option em { font-style: normal; color: var(--green); margin-left: 10px; font-size: 12px; }
+.feedback-option small { display: block; font-size: 13px; line-height: 1.6; color: #55657c; margin-top: 5px; }
+.question-panel .feedback-answer { font-size: 14px; }
+.feedback-question textarea { font-size: 14px; line-height: 1.6; }
+.feedback-fact summary, .feedback-legacy summary, .feedback-diagnostics summary { cursor: pointer; color: var(--blue); font-size: 13px; padding: 8px 0; }
+.feedback-diagnostics { margin: 18px 0; }
+.feedback-diagnostics pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+.question-panel .feedback-blocker-reason { color: var(--ink); font-size: 16px; line-height: 1.7; }
+.question-panel .feedback-request { color: var(--ink); font-size: 14px; line-height: 1.7; }
+@media (max-width: 560px) { .feedback-fact { grid-template-columns: 1fr; gap: 3px; } .feedback-question legend { font-size: 16px; } }
 .evaluation-panel {
   padding-bottom: 24px;
   border-bottom: 1px solid var(--line);

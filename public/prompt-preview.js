@@ -47,7 +47,7 @@ export function installPromptPreviews({ api, setup }) {
   confirm.onclick = () => { if (!confirm.disabled) finish(true); };
   dialog.addEventListener('cancel', event => { event.preventDefault(); finish(false); });
   dialog.addEventListener('close', () => { if (resolvePending) finish(false); });
-  // show 固定本次请求，默认展开提示词；只有完整读取成功后才能确认。
+  // show 固定本次请求，确认时折叠技术提示词，历史查看仍展开；完整读取成功后才能确认。
   async function show(load, heading, requiresConfirmation) {
     if (dialog.open || resolvePending) throw new Error('请先完成当前提示词确认');
     const current = ++version;
@@ -64,7 +64,7 @@ export function installPromptPreviews({ api, setup }) {
       note.textContent = `${requiresConfirmation ? '确认后才会调用模型并消耗 tokens；本次确认后，后续自动执行流程会继续。' : ''} ${result.note || ''}`;
       for (const entry of entries) {
         const section = document.createElement('details'), heading = document.createElement('summary'), pre = document.createElement('pre');
-        section.className = 'prompt-entry'; section.open = true; heading.textContent = entry.title; section.append(heading);
+        section.className = 'prompt-entry'; section.open = !requiresConfirmation; heading.textContent = `${entry.title}${requiresConfirmation ? ' · 查看完整提示词' : ''}`; section.append(heading);
         if (entry.executor) { const meta = document.createElement('p'); meta.className = 'setup-note'; meta.textContent = `${entry.executor.name} · ${entry.executor.hostType} · ${entry.executor.model || '默认模型'} · 思考强度 ${entry.executor.reasoningEffort || '默认'}`; section.append(meta); }
         pre.textContent = entry.error ? `暂不可预览：${entry.error}` : entry.input; section.append(pre); content.append(section);
       }

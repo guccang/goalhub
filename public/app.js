@@ -20,6 +20,7 @@ try {
 // 本文件驱动目标工作台，定期读取 SQLite 状态并提供创建、问答、暂停和日志查询交互。
 // 调用确认是执行前的必要步骤，模块加载失败时不继续开放模型调用。
 const { installPromptPreviews, promptLink } = await import('./prompt-preview.js');
+const { renderQuestionForm, collectQuestionAnswers, blockerFeedback } = await import('./feedback.js');
 const { ProjectsPanel } = await import('./projects.js');
 const { SetupFlow } = await import('./setup.js');
 const { OfficeView } = await import('./office-view.js');
@@ -201,7 +202,7 @@ function renderQuestions() {
   if (questionsKey === key) return;
   questionsKey = key;
   $('#question-panel').hidden = !pending.length;
-  $('#question-panel').innerHTML = pending.length ? `<h2>需要你补充信息</h2><p>${escape(project.summary)}</p><p>回答后会自动继续，已有进度和原目标会保留。</p><form id="answer-form">${pending.map((question, index) => `<label>${index + 1}. ${escape(question.prompt)}<textarea name="${question.id}" required maxlength="10000" rows="2" placeholder="填写回答"></textarea></label>`).join('')}<button class="primary" type="submit">提交回答并继续</button>${promptLink('answers')}</form>` : '';
+  $('#question-panel').innerHTML = pending.length ? renderQuestionForm(project, pending) : '';
 }
 
 // projectSummary 兼容历史阻断记录，避免显示下一轮会自动执行的过时承诺。
@@ -214,10 +215,16 @@ function renderBlocker() {
   const panel = $('#blocker-panel');
   panel.hidden = project.status !== 'blocked';
   if (panel.hidden) return;
-  $('#blocker-reason').textContent = projectSummary() || '执行未能继续，请检查最近运行记录。';
+  const feedback = blockerFeedback(project);
+  $('#blocker-reason').textContent = feedback.reason;
+  html('#blocker-context', feedback.context);
+  $('#blocker-request').textContent = feedback.request;
+  $('#blocker-instruction').placeholder = feedback.hint;
+  $('#blocker-raw').textContent = projectSummary() || '未记录详细原因。';
   const checks = project.checks.filter(check => check.status !== 'passed' && check.output);
-  html('#blocker-evidence', checks.map(check => `<details><summary>${escape(check.title)}</summary><p><code>${escape(check.command)}</code></p><pre>${escape(check.output)}</pre></details>`).join('') || '<p>暂无失败验收输出，请查看输入与输出中的最近失败轮次。</p>');
-  $('#blocker-timeout').textContent = '统一使用员工超时。请在「检查团队配置」中调整，下一次执行生效。';
+  html('#blocker-evidence', checks.map(check => `<details><summary>${escape(check.title)}</summary><p><code>${escape(check.command)}</code></p><pre>${escape(check.output)}</pre></details>`).join(''));
+  $('#blocker-timeout').hidden = !feedback.timeout;
+  $('#blocker-timeout').textContent = feedback.timeout ? '可在“检查团队配置”中调整该员工的超时，下一轮生效。' : '';
   // 定期刷新仅更新证据，保留用户正在输入的修复要求；切换目标时清空。
   const owner = `${project.id}:${project.active_goal_id}`;
   if (panel.dataset.owner !== owner) { $('#blocker-instruction').value = ''; panel.dataset.owner = owner; }
@@ -357,7 +364,15 @@ async function selectProject(id) {
 async function action(name) {
   if (name === 'home') { homeVisible = true; closePanel('sidebar'); renderHome(); renderProject(); document.title = '办公室总览 · GoalHub'; return; }
   // 顶部直接定位需要用户处理的内容，避免长页面遗漏待办。
-  if (name === 'attention') { openPanel('attention-dialog'); const panel = $(project.status === 'blocked' ? '#blocker-panel' : project.status === 'waiting_input' ? '#question-panel' : '#plan-preview'); panel.scrollIntoView({ block: 'center' }); panel.querySelector('textarea, button')?.focus({ preventScroll: true }); return; }
+  if (name === 'attention') {
+    openPanel('attention-dialog');
+    const panel = $(project.status === 'blocked' ? '#blocker-panel' : project.status === 'waiting_input' ? '#question-panel' : '#plan-preview');
+    // 从问题标题开始阅读，避免窄屏打开时自动滚到输入框而错过上下文。
+    const heading = panel.querySelector('h2');
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+    $('#attention-dialog').scrollTop = 0;
+    return;
+  }
   if (name === 'employee-details') { office.select(office.selected); return; }
   if (name === 'office-location') { $('#project-tools').open = false; editOfficeLocation(selected); return; }
   if (name === 'manage-team') { $('#project-tools').open = false; await employees.open(selected); return; }
@@ -417,7 +432,7 @@ document.addEventListener('submit', async (event) => {
   if (event.target.id !== 'answer-form') return;
   event.preventDefault(); const button = event.target.querySelector('button'); button.disabled = true;
   try {
-    const answers = [...new FormData(event.target)].map(([id, answer]) => ({ id, answer }));
+    const answers = collectQuestionAnswers(event.target, project.questions.filter(item => item.answer === null));
     await api(`/projects/${selected}/answer`, { answers }); await refresh(); toast('回答已记录，继续执行');
   } catch (error) { toast(error.message); button.disabled = false; }
 });

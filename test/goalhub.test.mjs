@@ -478,13 +478,15 @@ test('回答缺项可待定后先重新规划，旧失败验收保留历史且�
     developer({ count, options }) {
       if (count === 1) {
         writeFileSync(join(options.cwd, 'retained.txt'), '保留已有成果');
-        return { status: 'needs_input', summary: '缺少完整资料', questions: ['缺少资料如何处理？'] };
+        return { status: 'needs_input', summary: '缺少完整资料', questions: [{ question: '缺少资料如何处理？', context: '已经生成部分成果，尚缺完整外部资料。', reason: '需要决定是否仍将缺少资料的部分纳入范围。', options: [], recommendation: '', answerHint: '请说明资料如何补充或哪些内容可以延期。' }] };
       }
     },
   });
   f.orchestrator.start(f.project.id);
   await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '未进入等待输入');
   assert.equal(f.store.project(f.project.id).status, 'waiting_input');
+  assert.equal(f.store.questions(f.project.id)[0].details.reason, '需要决定是否仍将缺少资料的部分纳入范围。');
+  assert.ok(!f.store.events(f.project.id, { kind: 'input.required' })[0].content.includes('[object Object]'));
   const server = createApp(f);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => { server.closeAllConnections(); server.close(); });
