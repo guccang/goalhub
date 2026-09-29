@@ -99,7 +99,7 @@
         <details class="advanced"><summary>更多设置</summary><label>项目默认语言<select name="language"><option value="zh-CN">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option></select></label><label>计划确认方式<select name="confirmationMode"><option value="auto">自动执行：负责人规划后直接开始实现</option><option value="manual">人工确认：由我审阅计划后开始实现</option></select></label>
         <label class="inline-choice"><input name="generateTeam" type="checkbox">先由 God 一键搭建团队，再开始规划</label>
         <label class="inline-choice"><input name="configureTeam" type="checkbox">先配置项目员工，再开始规划</label>
-        <details class="advanced"><summary>评估间隔与执行时限</summary><label>评估间隔（分钟）<input name="evaluationMinutes" type="number" min="0.1" max="1440" step="0.1" value="5" required></label><div class="form-grid"><label>单轮 Agent 时限（分钟）<input name="agentTimeoutMinutes" type="number" min="1" max="240" value="30" required></label><label>每条验收命令总时限（秒）<input name="testTimeoutSeconds" type="number" min="5" max="3600" value="120" required></label></div></details>
+        <details class="advanced"><summary>评估间隔与执行时限</summary><label>评估间隔（分钟）<input name="evaluationMinutes" type="number" min="0.1" max="1440" step="0.1" value="5" required></label><div class="form-grid"><label>新员工默认处理时限（分钟）<input name="agentTimeoutMinutes" type="number" min="1" max="240" value="30" required></label><p class="setup-note">开发和任务验收使用执行员工的处理时限；最终验收、交付构建及预览启动使用负责人时限。在「管理团队」中调整。</p></div></details>
         </details><p id="selected-host" class="setup-note"></p><div class="create-note">默认由负责人完成规划后自动执行。</div>
         <div id="create-error" class="form-error" role="alert"></div><div class="dialog-footer"><button type="button" class="secondary" id="back-host">管理全局宿主</button><button type="submit" class="primary">提交需求</button></div>
         </fieldset>
@@ -158,7 +158,7 @@
           <button type="button" class="host-card" data-host="opencode" aria-pressed="false"><span class="host-card-top"><strong>OpenCode</strong><span class="host-active"></span></span><span class="host-health">读取状态…</span><small class="host-detail">多供应商 / API Key</small></button>
         </div>
         <p class="setup-note">可用状态依据最近一次连通性测试；配置变更后需重新测试。</p>
-        <h3 id="host-config-title">Codex 配置</h3>
+        <h3 id="host-config-title">Codex 配置</h3><label>连通性测试时限（分钟）<input name="probeTimeoutMinutes" type="number" min="1" max="240" value="2" required><small>仅用于全局宿主连通性测试。项目开发、验收与交付使用员工处理时限。</small></label>
         <label>模型名称<input name="model" maxlength="150" placeholder="留空使用宿主默认模型"></label>
         <label id="codex-effort">模型思考强度<select name="reasoningEffort"><option value="">模型默认</option><option value="minimal">最低 · minimal</option><option value="low">低 · low</option><option value="medium">中 · medium</option><option value="high">高 · high</option><option value="xhigh">最高 · xhigh</option></select><small>具体强度需所选模型支持，保存后通过连通性测试验证。员工独立配置优先。</small></label><label id="codex-auth-mode">Codex 认证方式<select name="authMode"><option value="local">沿用本机登录</option><option value="device">无头登录（ChatGPT 设备码）</option><option value="api">API Key 登录</option></select></label>
         <p id="host-auth-note" class="setup-note">选择认证方式后保存，并测试连通性。</p>
@@ -168,7 +168,7 @@
       </form>
       <details><summary>认证与配置记录</summary><pre id="host-auth-history"></pre></details>
       <p id="host-test-status" role="status" class="setup-note">请保存配置，然后测试。</p><details><summary>测试输出 / 历史记录</summary><div id="host-test-output"></div></details>
-      <p class="setup-note">测试会调用所选模型，最多等待 120 秒。通过表示本次真实调用成功。</p>
+      <p class="setup-note">测试会调用所选模型，按保存的连通性测试时限等待。通过表示本次真实调用成功。</p>
       <div class="dialog-footer"><button class="primary" id="next-goal">完成</button></div>
     </section>
     <p id="host-error" class="form-error" role="alert"></p>

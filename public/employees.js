@@ -50,7 +50,7 @@ export class EmployeeManager {
     this.dialog.querySelector('#add-employee').onclick = () => {
       if (this.employees.length >= 15) return;
       const character = this.characters.find(name => !this.employees.some(employee => employee.character === name)) || this.characters[0];
-      const employee = { id: crypto.randomUUID(), name: this.characterNames[character], position: '', capabilities: ['development'], character, isLead: false, enabled: true, hostType: 'codex', model: '', reasoningEffort: '', timeoutMinutes: 30, instructionsVersion: 2, instructions: '', nativeLanguage: '' };
+      const employee = { id: crypto.randomUUID(), name: this.characterNames[character], position: '', capabilities: ['development'], character, isLead: false, enabled: true, hostType: 'codex', model: '', reasoningEffort: '', timeoutMinutes: this.defaultTimeoutMinutes ?? 30, instructionsVersion: 2, instructions: '', nativeLanguage: '' };
       this.employees.push(employee); this.selected = employee.id; this.render();
     };
     this.list.addEventListener('click', event => {
@@ -107,7 +107,7 @@ export class EmployeeManager {
     try {
       const [value, projects] = await Promise.all([this.api(`/projects/${id}/employees`), this.api('/projects')]);
       if (this.openVersion !== version) return;
-      Object.assign(this, value); this.selected = this.employees[0]?.id;
+      Object.assign(this, value); this.defaultTimeoutMinutes = projects.find(project => project.id === id)?.settings.agentTimeoutMinutes ?? 30; this.selected = this.employees[0]?.id;
       this.dialog.querySelector('#project-language').innerHTML = options(this.languages, this.language);
       this.dialog.querySelector('#project-context').value = this.context || '';
       this.dialog.querySelector('#copy-team-source').innerHTML = '<option value="">选择其他项目</option>' + projects.filter(project => project.id !== id).map(project => `<option value="${escape(project.id)}">${escape(project.name)}</option>`).join('');
@@ -202,7 +202,7 @@ export class EmployeeManager {
       <p class="setup-note">负责人理解目标、分配任务、跟进结果和核对交付。员工配置仅作用于本项目。</p>
       <div class="employee-grid"><label>执行宿主<select name="hostType">${options(hosts, employee.hostType)}</select></label><label>模型<input name="model" value="${escape(employee.model)}" maxlength="150"></label>
       <label>思考强度<select name="reasoningEffort" ${employee.hostType !== 'codex' ? 'disabled' : ''}>${options({ '': employee.hostType === 'codex' ? '模型默认' : '此宿主暂不支持', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }, employee.reasoningEffort)}</select></label>
-      <label>单轮时限（分钟）<input type="number" name="timeoutMinutes" min="1" max="240" value="${employee.timeoutMinutes}" required></label>
+      <label>处理时限（分钟，含开发与验收）<input type="number" name="timeoutMinutes" min="1" max="240" value="${employee.timeoutMinutes}" required></label>
       <label>员工母语<select name="nativeLanguage">${options({ '': '继承项目语言', ...this.languages }, employee.nativeLanguage || '')}</select></label></div>
       ${promptLink('employee')}<button class="secondary employee-remove" type="button" data-remove-employee>移除此员工</button>`;
     this.paint(this.detail);

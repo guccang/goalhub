@@ -13,6 +13,7 @@ export class SetupFlow {
       this.form.elements.hostType.value = card.dataset.host;
       this.form.elements.model.value = this.state?.hosts?.find(host => host.hostType === card.dataset.host)?.model || '';
       this.form.elements.reasoningEffort.value = this.state?.hosts?.find(host => host.hostType === card.dataset.host)?.reasoningEffort || '';
+      this.form.elements.probeTimeoutMinutes.value = this.state?.hosts?.find(host => host.hostType === card.dataset.host)?.probeTimeoutMinutes ?? 2;
       this.dirty = true; this.find('#host-error').textContent = '';
       this.credentials().catch(error => this.error(error));
     });
@@ -64,6 +65,7 @@ export class SetupFlow {
     this.find('#host-dialog').showModal(); this.find('#host-error').textContent = '';
     this.state = await this.api('/host');
     this.form.elements.hostType.value = this.state.hostType; this.form.elements.model.value = this.state.model; this.form.elements.reasoningEffort.value = this.state.reasoningEffort || '';
+    this.form.elements.probeTimeoutMinutes.value = this.state.probeTimeoutMinutes ?? 2;
     await this.credentials(); this.dirty = !this.state.revision; this.paint();
   }
   // closeHost 返回原目标草稿，侧栏入口则仅关闭全局设置。
@@ -148,6 +150,7 @@ export class SetupFlow {
   // save 保存设置并使旧配置的验证结果失效。
   async save() {
     const value = Object.fromEntries(new FormData(this.form)); value.clearApiKey = this.form.elements.clearApiKey.checked;
+    value.probeTimeoutMinutes = Number(value.probeTimeoutMinutes);
     if (value.hostType !== 'codex') value.reasoningEffort = '';
     this.pending = true; this.paint(); this.find('#host-error').textContent = '';
     try { this.state = await this.api('/host', value); this.form.elements.apiKey.value = ''; this.form.elements.clearApiKey.checked = false; this.find('#host-key-state').textContent = this.state.credentials.hasApiKey ? '已保存密钥，留空可保留。' : '未保存 API 密钥。'; this.dirty = false; this.modelPicker.load(); }
@@ -183,7 +186,7 @@ export class SetupFlow {
       const values = Object.fromEntries(new FormData(form));
       const hostTestId = this.state.tests.find(test => test.revision === this.state.revision).id;
       const configureTeam = values.configureTeam === 'on', generateTeam = values.generateTeam === 'on' || (this.needsTeam && !configureTeam);
-      const created = await this.api(`/projects/${projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
+      const created = await this.api(`/projects/${projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes) } });
       this.find('#goal-dialog').close();
       this.drafts?.delete(projectId); if (this.projectId === projectId) form.reset(); button.textContent = '提交需求'; await this.selectProject(created.id); if (this.selectGoal && created.viewed_goal_id) await this.selectGoal(created.viewed_goal_id); await this.refresh();
       if (generateTeam) { await this.buildTeam(created.id); }

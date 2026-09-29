@@ -189,7 +189,7 @@ function renderBlocker() {
   $('#blocker-reason').textContent = projectSummary() || '执行未能继续，请检查最近运行记录。';
   const checks = project.checks.filter(check => check.status !== 'passed' && check.output);
   html('#blocker-evidence', checks.map(check => `<details><summary>${escape(check.title)}</summary><p><code>${escape(check.command)}</code></p><pre>${escape(check.output)}</pre></details>`).join('') || '<p>暂无失败验收输出，请查看输入与输出中的最近失败轮次。</p>');
-  $('#blocker-timeout').textContent = `当前每条验收命令的总时限为 ${project.settings.testTimeoutSeconds} 秒；命令内包含多项测试时，共用这个时限。`;
+  $('#blocker-timeout').textContent = '任务验收继承任务执行员工的处理时限；最终验收、交付构建和预览启动继承负责人时限。请在「检查团队配置」中调整，下一次执行生效。';
   // 定期刷新仅更新证据，保留用户正在输入的修复要求；切换目标时清空。
   const owner = `${project.id}:${project.active_goal_id}`;
   if (panel.dataset.owner !== owner) { $('#blocker-instruction').value = ''; panel.dataset.owner = owner; }
@@ -255,7 +255,7 @@ function renderInspector() {
   $('#check-list').innerHTML = project.checks.length ? project.checks.map((check) => `<details class="check-item" data-check="${check.id}" ${opened.has(check.id) ? 'open' : ''}><summary><span class="check-symbol ${check.status}">${check.status === 'passed' ? '✓' : check.status === 'failed' ? '!' : '○'}</span><span>${escape(check.title)}</span>${badge(check.status)}</summary><p>${escape(check.expectation)}</p><code>${escape(check.command)}</code>${check.output ? `<pre>${escape(check.output)}</pre>` : ''}</details>`).join('') : '<p class="subtle">规划后自动生成验收项目。</p>';
   $('#commit-list').innerHTML = project.commits.slice(0, 5).map((commit) => `<div class="commit"><div><strong>${escape(commit.title)}</strong><small><code>${escape(commit.hash.slice(0, 7))}</code>${date(commit.created_at, true)}</small></div></div>`).join('') || '<p class="subtle">执行开始后创建独立仓库。</p>';
   $('#repo-path').textContent = project.paths?.repo || '';
-  $('#settings-list').innerHTML = `<dt>执行宿主</dt><dd>${hostLabels[project.settings.hostType]}</dd><dt>模型</dt><dd>${escape(project.settings.model || '宿主默认')}</dd><dt>Agent 时限</dt><dd>${project.settings.agentTimeoutMinutes} 分钟</dd><dt>测试时限</dt><dd>${project.settings.testTimeoutSeconds} 秒</dd><dt>连续未推进</dt><dd>${project.failures} / 3 轮</dd>`;
+  $('#settings-list').innerHTML = `<dt>执行宿主</dt><dd>${hostLabels[project.settings.hostType]}</dd><dt>模型</dt><dd>${escape(project.settings.model || '宿主默认')}</dd><dt>员工处理时限</dt><dd>${(project.settings.employees || []).filter(employee => employee.enabled).map(employee => `${escape(employee.name)}：${employee.timeoutMinutes} 分钟`).join("；") || "请配置员工"}</dd><dt>验收与交付时限</dt><dd>任务验收继承执行员工；最终验收与交付继承负责人。</dd><dt>连续未推进</dt><dd>${project.failures} / 3 轮</dd>`;
 }
 
 // renderRuns 列出每轮输入输出的入口。
