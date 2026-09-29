@@ -250,7 +250,10 @@ test('所有项目阶段提供预览且与调用使用同一输入', async t => 
     const input = phasePrompt(role, { context: f.orchestrator.context(id), task });
     const control = { id, busyEmployees: new Set(), handles: new Set(), interrupted: new Set() };
     await f.orchestrator.agent(control, role, '.', input, false, preview.executor.id);
-    assert.equal(f.calls.at(-1).input, preview.input, role);
+    // 执行时仅追加按运行隔离的计划文件路径，预览的任务与权限正文必须完全一致。
+    const actual = f.calls.at(-1).input;
+    assert.equal(actual.split('\n本轮个人计划文件：')[0], preview.input, role);
+    assert.match(actual, /本轮个人计划文件：[\s\S]*plan\.md/);
   }
   const edited = team(f.store.project(id)); edited[1].instructions = '未保存的工作说明';
   const draft = await f.request(path, { role: 'developer', employees: edited, employeeId: edited[1].id, language: 'en', context: '新背景' });
