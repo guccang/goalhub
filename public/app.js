@@ -21,6 +21,7 @@ try {
 // 调用确认是执行前的必要步骤，模块加载失败时不继续开放模型调用。
 const { installPromptPreviews, promptLink } = await import('./prompt-preview.js');
 const { renderQuestionForm, collectQuestionAnswers, blockerFeedback } = await import('./feedback.js');
+const { renderRunEmployee, runEmployeeText } = await import('./run-view.js');
 const { ProjectsPanel } = await import('./projects.js');
 const { SetupFlow } = await import('./setup.js');
 const { OfficeView } = await import('./office-view.js');
@@ -295,7 +296,7 @@ function renderInspector() {
 
 // renderRuns 列出每轮输入输出的入口。
 function renderRuns() {
-  html('#run-list', project.runs.map((run) => `<button class="run-row" data-run="${run.id}"><span class="run-role">${roles[run.role] || escape(run.role)}</span>${badge(run.status)}<time>${date(run.created_at, true)}</time><span aria-hidden="true">›</span></button>`).join('') || '<p class="empty-section">执行开始后，每轮输入与输出都会保存在这里。</p>');
+  html('#run-list', project.runs.map((run) => `<button class="run-row run-with-employee" data-run="${run.id}">${renderRunEmployee(run)}<span class="run-role">${roles[run.role] || escape(run.role)}</span>${badge(run.status)}<time>${date(run.created_at, true)}</time><span aria-hidden="true">›</span></button>`).join('') || '<p class="empty-section">执行开始后，每轮输入与输出都会保存在这里。</p>');
 }
 
 // renderEvents 展示可查询的日志，长内容按需展开。
@@ -418,9 +419,10 @@ document.addEventListener('click', async (event) => {
     if (button.dataset.run) {
       const run = await api(`/runs/${button.dataset.run}`);
       // 历史轮次展示当时的执行配置，避免员工改名或换模型后混淆记录。
-      const executor = run.executor ? JSON.parse(run.executor) : null;
-      $('#run-title').textContent = roles[run.role] || run.role;
-      $('#run-meta').textContent = `${labels[run.status] || run.status} · ${date(run.created_at)}${executor ? ` · 员工 ${executor.name} · ${hostLabels[executor.hostType] || executor.hostType} · 模型 ${executor.model || '默认'} · 思考 ${executor.reasoningEffort || '默认'} · 语言 ${executor.effectiveLanguage || '历史未记录'}` : ''}${run.session_id ? ` · 会话 ${run.session_id}` : ''}`;
+      let executor = null;
+      try { executor = run.executor ? JSON.parse(run.executor) : null; } catch { /* 旧配置损坏时仍允许查看该轮输入输出。 */ }
+      $('#run-title').textContent = `${run.employee?.name || '员工信息未记录'} · ${roles[run.role] || run.role}`;
+      $('#run-meta').textContent = `${runEmployeeText(run)} · ${labels[run.status] || run.status} · ${date(run.created_at)}${executor ? ` · ${hostLabels[executor.hostType] || executor.hostType} · 模型 ${executor.model || '默认'} · 思考 ${executor.reasoningEffort || '默认'} · 语言 ${executor.effectiveLanguage || '历史未记录'}` : ''}${run.session_id ? ` · 会话 ${run.session_id}` : ''}`;
       $('#run-prompt-link').dataset.runId = run.id; $('#run-output').textContent = run.output || '运行中，流事件可在步骤记录中查询。';
       $('#run-dialog').showModal();
     }
