@@ -156,11 +156,15 @@ test('旧交付与人工设置明确分离，验证端口冲突不触发员工�
 test('Windows UTF-8 BOM 交付配置可构建，损坏 JSON 保留真实原因', async t => {
   const manifest = { kind: 'desktop', build: 'node build.mjs', verify: 'node verify.mjs', artifacts: ['dist/App.exe'], instructions: '测试安装产物' };
   const f = await fixture(t, manifest);
+  manifest.artifacts.push('dist/build-manifest.json');
+  writeFileSync(join(f.paths.work, 'build.mjs'), readFileSync(join(f.paths.work, 'build.mjs'), 'utf8') + `\nwriteFileSync('dist/build-manifest.json', JSON.stringify({built:true}));`);
   writeFileSync(join(f.paths.work, 'goalhub.delivery.json'), '\uFEFF' + JSON.stringify(manifest));
   await f.git.checkpoint(f.project.id, 'test BOM configuration');
   const id = await f.manager.prepare(f.project.id, f.paths.work);
   assert.equal(f.manager.row(id).status, 'verified');
   assert.match(f.manager.row(id).log, /VERIFY_OK/);
+  assert.equal(JSON.parse(f.manager.row(id).files).length, 2);
+  assert.throws(() => validateDelivery({ ...manifest, artifacts: ['dist/build-manifest.json'] }), /不能代替/);
   writeFileSync(join(f.paths.work, 'goalhub.delivery.json'), '\uFEFF{broken');
   await assert.rejects(f.manager.prepare(f.project.id, f.paths.work), error => {
     assert.match(error.message, /读取 goalhub.delivery.json 失败/);
