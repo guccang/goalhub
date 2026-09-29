@@ -32,7 +32,7 @@ async function waitUntil(predicate, diagnostics = () => '', timeout = 30000) {
 }
 
 // fixture 构造两个员工和可控模型，所有文件断言与合并使用真实磁盘。
-function fixture(t) {
+function fixture(t, pipeline = false) {
   const directory = mkdtempSync(join(tmpdir(), 'goalhub-concurrent-')), store = new Store(join(directory, 'state.sqlite'));
   const git = new ProjectGit(directory, store), held = new Map(), active = new Set(), calls = [], folders = new Set(); let max = 0;
   const runtime = { dataDir: directory,
@@ -47,13 +47,14 @@ function fixture(t) {
       // reply 输出结构化结果，并实际生成当前目标对应的文件。
       const reply = () => {
         let value;
-        if (role === 'planner') value = { needsInput: false, summary: goal, tasks: [{ id: 'one', title: goal, description: `生成 ${goal}.txt`, assignee: goal === 'B' ? 'planner' : 'developer', checkIds: ['file'] }], checks: [{ id: 'file', title: goal, command: goal, expectation: '文件内容等于目标名称' }] };
+        if (role === 'planner') value = { needsInput: false, summary: goal, tasks: [{ id: 'one', title: goal, description: `生成 ${goal}.txt`, assignee: goal === 'B' && !pipeline ? 'planner' : 'developer', checkIds: ['file'] }], checks: [{ id: 'file', title: goal, command: goal, expectation: '文件内容等于目标名称' }] };
         else if (role === 'developer') {
           folders.add(options.cwd); writeFileSync(join(options.cwd, `${goal}.txt`), goal);
           writeFileSync(join(options.cwd, 'goalhub.delivery.json'), JSON.stringify({ kind: 'source', instructions: '纯文本文件，无运行界面；读取文件内容验证。' }));
           value = { status: 'done', summary: `完成 ${goal}` };
         } else if (role === 'coordinator') value = { needsInput: false, assignee: 'developer', summary: '修复' };
         else value = { action: 'complete', summary: `验收 ${goal}` };
+        if (pipeline && role === 'planner' && goal === 'A') value.tasks.push({ id: 'qa', title: '验证 A', description: '测试 A', assignee: 'planner', requiredCapability: 'testing', dependsOn: ['one'], checkIds: ['file'] });
         finish({ code: 0, finalMessage: JSON.stringify(value) });
       };
       if (role === 'developer') held.set(goal, reply); else setTimeout(reply, 1);
@@ -67,7 +68,7 @@ function fixture(t) {
   };
   const scheduler = new GoalScheduler({ store, git, runtime, retryDelayMs: 1 });
   const project = store.create({ name: '并发项目', settings: { confirmationMode: 'auto', evaluationMinutes: 60, testTimeoutSeconds: 5 } });
-  store.saveEmployees(project.id, team(project).slice(0, 2));
+  store.saveEmployees(project.id, team(project).slice(0, 2).map(employee => ({ ...employee, capabilities: pipeline ? (employee.isLead ? ['coordination', 'review', 'testing'] : ['development']) : [...employee.capabilities, 'development'] })));
   t.after(async () => { await scheduler.close(); store.close(); const suffix = relative(tmpdir(), directory); assert.ok(suffix.startsWith('goalhub-concurrent-') && !suffix.includes('..') && !isAbsolute(suffix)); rmSync(directory, { recursive: true, force: true }); });
   return { store, git, runtime, scheduler, held, calls, folders, active, directory, id: project.id, max: () => max, diagnostics: () => JSON.stringify(store.goals(project.id).map(goal => [goal.goal, goal.status, goal.summary])) };
 }
@@ -206,4 +207,29 @@ test('并发目标的问答、指令、事件和运行记录互不串线', t => 
   assert.equal(f.store.instructions(f.id).length, 0); assert.equal(scoped.instructions(f.id)[0].content, '乙指令');
   scoped.update(f.id, { summary: '乙状态' }); assert.notEqual(f.store.project(f.id).summary, '乙状态');
   assert.equal(f.store.db.prepare('SELECT goal_id FROM commits WHERE title=?').get('乙提交').goal_id, b);
+});
+
+// 真实流程验证开发后才能测试，且测试和下一目标开发可由不同员工同时执行。
+test('开发完成才进入测试，测试 A 与开发 B 并行且等待员工可见', async t => {
+  const f = fixture(t, true);
+  f.store.enqueueGoal(f.id, { goal: 'A' }); f.store.enqueueGoal(f.id, { goal: 'B' }); f.scheduler.pump(f.id);
+  await waitUntil(() => f.held.has('A') && f.scheduler.state(f.id).assignments.some(item => item.waiting), f.diagnostics);
+  assert.equal(f.calls.filter(call => call.role === 'developer').length, 1);
+  assert.equal(f.calls.find(call => call.role === 'developer').employee, 'developer');
+  const finishA = f.held.get('A'); f.held.delete('A'); finishA();
+  await waitUntil(() => f.held.has('A') && f.held.has('B'), f.diagnostics);
+  assert.equal(f.calls.filter(call => call.goal === 'A' && call.role === 'developer').at(-1).employee, 'planner');
+  assert.ok(f.scheduler.state(f.id).assignments.some(item => item.label.includes('正在测试')));
+  assert.ok(f.scheduler.state(f.id).assignments.some(item => item.label.includes('正在开发')));
+});
+
+// 同能力空闲员工可以接手，避免所有任务都排在同一个忙碌员工之后。
+test('开发员工忙时优先调度明确具备开发能力的空闲员工', async t => {
+  const f = fixture(t);
+  f.store.enqueueGoal(f.id, { goal: 'A' }); f.scheduler.pump(f.id);
+  await waitUntil(() => f.held.has('A'), f.diagnostics);
+  f.store.enqueueGoal(f.id, { goal: 'C' }); f.scheduler.pump(f.id);
+  await waitUntil(() => f.held.has('C'), f.diagnostics);
+  assert.equal(f.calls.find(call => call.goal === 'C' && call.role === 'developer').employee, 'planner');
+  assert.equal(f.max(), 2);
 });

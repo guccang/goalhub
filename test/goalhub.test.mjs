@@ -352,7 +352,7 @@ test('HTTP 接口可创建查询项目并拒绝跨源和无效输入', async (t)
   await server.hostSetup.save({ hostType: 'codex', model: '' });
   const probe = server.hostSetup.start();
   await waitUntil(() => !server.hostSetup.job, '宿主测试未结束');
-  const created = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'HTTP 项目', goal: '测试保存目标', autoStart: false, hostTestId: probe.id }) });
+  const created = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'HTTP 项目', goal: '测试保存目标', settings: { confirmationMode: 'manual' }, autoStart: false, hostTestId: probe.id }) });
   assert.equal(created.status, 201);
   const value = await created.json(); assert.equal(value.status, 'paused');
   // 同一份全局宿主测试可被多个目标复用，创建目标不修改配置或触发新探测。
@@ -682,7 +682,7 @@ test('单员工项目可自行完成任务，执行期间负责人评估不会�
     // developer 保持任务运行，便于触发进度检查验证员工互斥。
     async developer() { await pending; },
   });
-  f.store.saveEmployees(f.project.id, validateTeam([{ ...team(f.project)[0], id: 'solo', role: undefined }]));
+  f.store.saveEmployees(f.project.id, validateTeam([{ ...team(f.project)[0], id: 'solo', role: undefined, capabilities: ['coordination', 'review', 'development'] }]));
   f.orchestrator.start(f.project.id);
   await waitUntil(() => f.counts.developer === 1, '负责人没有开始执行', 30000);
   f.orchestrator.evaluateNow(f.project.id);
@@ -697,7 +697,7 @@ test('单员工项目可自行完成任务，执行期间负责人评估不会�
 test('移除已分配员工后由负责人重新安排，恢复不依赖旧职责', async t => {
   const f = fixture(t, { coordinator: () => ({ needsInput: false, assignee: 'quality', summary: '由具备验证能力的 Pam 接手' }) });
   f.store.plan(f.project.id, plan);
-  f.store.saveEmployees(f.project.id, validateTeam(team(f.project).filter(employee => employee.id !== 'developer')));
+  f.store.saveEmployees(f.project.id, validateTeam(team(f.project).filter(employee => employee.id !== 'developer').map(employee => employee.id === 'quality' ? { ...employee, capabilities: ['testing', 'development'] } : employee)));
   assert.equal(f.store.tasks(f.project.id)[0].assignee, '');
   f.orchestrator.start(f.project.id);
   await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '重新分配未完成', 30000);
