@@ -13,6 +13,8 @@ npm start
 
 访问 `http://127.0.0.1:3210`。可设置 `PORT`、`GOALHUB_DATA_DIR` 和 `AGENT_RUNTIME_PATH`。默认数据目录为项目下 `data/`。
 
+Windows 双击根目录的 `restart-backend.bat` 可启动或重启后端。脚本先暂停正在执行的项目，再回收旧后端进程树，隐藏窗口启动新服务并验证接口；已暂停项目需在页面点击继续执行。日志保存在 `output/backend/`。自定义环境变量时，请在设置了相同 `PORT`、`GOALHUB_DATA_DIR` 和 `AGENT_RUNTIME_PATH` 的终端运行此脚本。
+
 ## 执行规则
 
 项目完成还必须通过交付验证。Web 支持指定本机端口启动、停止和打开预览；桌面与 App 保存经过构建和验证的安装产物，提供下载与 SHA-256。配置、旧项目补建及平台要求见 [项目交付](docs/delivery.md)。
