@@ -176,12 +176,17 @@ function renderQuestions() {
   $('#question-panel').innerHTML = pending.length ? `<h2>需要你补充信息</h2><p>${escape(project.summary)}</p><p>回答后会自动继续，已有进度和原目标会保留。</p><form id="answer-form">${pending.map((question, index) => `<label>${index + 1}. ${escape(question.prompt)}<textarea name="${question.id}" required maxlength="10000" rows="2" placeholder="填写回答"></textarea></label>`).join('')}<button class="primary" type="submit">提交回答并继续</button>${promptLink('answers')}</form>` : '';
 }
 
+// projectSummary 兼容历史阻断记录，避免显示下一轮会自动执行的过时承诺。
+function projectSummary() {
+  return project.status === 'blocked' ? project.summary.replace('，下一轮自动修复', '').replace('处理后可继续执行。', '请查看失败原因，处理后重试。') : project.summary;
+}
+
 // renderBlocker 展示阻断证据和恢复选择，不将重新启动误称为问题已解决。
 function renderBlocker() {
   const panel = $('#blocker-panel');
   panel.hidden = project.status !== 'blocked';
   if (panel.hidden) return;
-  $('#blocker-reason').textContent = project.summary || '执行未能继续，请检查最近运行记录。';
+  $('#blocker-reason').textContent = projectSummary() || '执行未能继续，请检查最近运行记录。';
   const checks = project.checks.filter(check => check.status !== 'passed' && check.output);
   html('#blocker-evidence', checks.map(check => `<details><summary>${escape(check.title)}</summary><p><code>${escape(check.command)}</code></p><pre>${escape(check.output)}</pre></details>`).join('') || '<p>暂无失败验收输出，请查看输入与输出中的最近失败轮次。</p>');
   $('#blocker-timeout').textContent = `当前每条验收命令的总时限为 ${project.settings.testTimeoutSeconds} 秒；命令内包含多项测试时，共用这个时限。`;
@@ -209,7 +214,7 @@ function renderProject() {
   $('#goal-text').textContent = project.goal;
   const stage = project.status === 'completed' ? 4 : project.status === 'awaiting_approval' ? 2 : project.resume_phase === 'execute' ? 3 : 1;
   $('#pipeline').innerHTML = ['理解需求', '计划与任务', '确认计划', '实施与验收'].map((name, index) => `<div class="pipeline-step ${index < stage ? 'finished' : index === stage ? 'active' : ''}">${name}</div>`).join('');
-  $('#summary').textContent = project.summary || (project.status === 'planning' ? '规划 Agent 正在分析目标、拆解任务与制定测试项目。' : '目标已保存，等待开始执行。');
+  $('#summary').textContent = projectSummary() || (project.status === 'planning' ? '规划 Agent 正在分析目标、拆解任务与制定测试项目。' : '目标已保存，等待开始执行。');
   $('#summary').classList.toggle('warning', ['blocked', 'waiting_input'].includes(project.status));
   $('#office-project-name').textContent = project.name;
   $('#show-office-on-home').checked = projects.find(item => item.id === project.id)?.settings.showOfficeOnHome !== false;
