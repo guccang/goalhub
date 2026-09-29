@@ -31,7 +31,7 @@ async function waitUntil(predicate, message, timeout = 15000) {
 function fixture(t, behavior = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'goalhub-test-'));
   const store = new Store(join(directory, 'state.sqlite')), git = new ProjectGit(directory, store);
-  const counts = { coordinator: 0, probe: 0, developer: 0, planner: 0, evaluator: 0, final: 0, test: 0 }, calls = [], stopped = [];
+  const counts = { triage: 0, coordinator: 0, probe: 0, developer: 0, planner: 0, evaluator: 0, final: 0, test: 0 }, calls = [], stopped = [];
   const runtime = {
     dataDir: directory,
     // load 使用公共配置模块，模型调用仍由下方可控宿主模拟。
@@ -40,7 +40,7 @@ function fixture(t, behavior = {}) {
     status() { return { available: true, message: '测试宿主' }; },
     // host 模拟可停止的公共 Agent 句柄，并写入真实源码文件。
     async host(options) {
-      const role = options.input.includes('这是宿主连通性测试') ? 'probe' : options.input.includes('你是任务分配负责人') ? 'coordinator' : options.input.includes('你是规划 Agent') ? 'planner' : options.input.includes('你是执行 Agent') ? 'developer' : options.input.includes('最终验收评估') ? 'final' : 'evaluator';
+      const role = options.input.includes('正在审核问题归属') ? 'triage' : options.input.includes('这是宿主连通性测试') ? 'probe' : options.input.includes('你是任务分配负责人') ? 'coordinator' : options.input.includes('你是规划 Agent') ? 'planner' : options.input.includes('你是执行 Agent') ? 'developer' : options.input.includes('最终验收评估') ? 'final' : 'evaluator';
       const count = ++counts[role]; calls.push({ ...options, role });
       options.onSession?.(`${role}-session`); options.onEvent?.('output', `${role} 原始流事件`);
       let resolveDone, finished = false;
@@ -58,6 +58,11 @@ function fixture(t, behavior = {}) {
           const custom = behavior[role] ? await behavior[role]({ options, count, counts, directory }) : undefined;
           if (custom === 'hold' || finished) return;
           let reply = custom;
+          if (reply === undefined && role === 'triage') {
+            const work = JSON.parse(options.input.split('本轮任务：\n')[1].split('\n')[0]);
+            const issue = JSON.parse(work.repair.content);
+            reply = { action: 'needs_input', summary: issue.summary, questions: issue.questions };
+          }
           if (reply === undefined && role === 'probe') reply = options.input.match(/GOALHUB_OK_[a-f0-9-]+/)[0];
           if (reply === undefined && role === 'planner') reply = plan;
           if (reply === undefined && role === 'coordinator') reply = { needsInput: false, assignee: 'developer', summary: '根据职位安排开发员工修复' };
@@ -988,4 +993,18 @@ test('办公地点可创建、修改和清空，项目隔离且跨迭代持久�
   const created = await post('/projects/register', { name: '带地点的新项目', mode: 'new', path: '', officeLocation: '杭州 · 未来科技城' });
   assert.equal(created.status, 201);
   assert.equal((await created.json()).office_location, '杭州 · 未来科技城');
+});
+
+// 员工把构建失败误报为提问时，主管安排修复并继续原目标，不等待需求方。
+test('员工技术提问经主管退回修复后自动完成且不产生用户待办', async t => {
+  const f = fixture(t, {
+    developer: ({ count }) => count === 1 ? { status: 'needs_input', summary: '安装包源码过期', questions: ['应该怎样重新构建？'] } : undefined,
+    triage: () => ({ action: 'repair', summary: '构建属于团队责任', repair: '保留需求，重新生成结果文件并运行真实验证' }),
+  });
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '主管修复未完成', 30000);
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.store.questions(f.project.id).length, 0);
+  assert.equal(f.counts.triage, 1);
+  assert.equal(f.counts.developer, 2);
 });

@@ -31,7 +31,7 @@ const { GodPanel } = await import('./god.js');
 const { EmployeeManager } = await import('./employees.js');
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
-const labels = { cancelled: '已取消', self_testing: '模块自测中', queued_merge: '等待集成', integrating: '集成验证中', retired: '已失效', queued: '排队中', ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '执行受阻，待处理', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
+const labels = { cancelled: '已取消', self_testing: '模块自测中', queued_merge: '等待集成', integrating: '集成验证中', retired: '已失效', queued: '排队中', ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '团队处理受阻', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
 const roles = { 'team-builder': 'God 搭建团队', planner: '负责人规划', coordinator: '任务分配', developer: '员工执行', evaluator: '定时评估', 'final-review': '最终评估', test: '测试验收' };
 const hostLabels = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
 let selectedGoal = '', homeVisible = true;
@@ -209,28 +209,28 @@ function renderQuestions() {
 
 // projectSummary 兼容历史阻断记录，避免显示下一轮会自动执行的过时承诺。
 function projectSummary() {
-  return project.status === 'blocked' ? project.summary.replace('，下一轮自动修复', '').replace('处理后可继续执行。', '请查看失败原因，处理后重试。') : project.summary;
+  return project.status === 'blocked' ? '团队暂时未能解决执行问题，已有成果已保留。此问题由主管和项目员工负责，无需你提供处理意见。' : project.summary;
 }
 
 // renderBlocker 展示阻断证据和恢复选择，不将重新启动误称为问题已解决。
 function renderBlocker() {
   const panel = $('#blocker-panel');
+  $('#attention-dialog .drawer-heading h2').textContent = project.status === 'waiting_input' ? '需要澄清的需求' : '计划确认';
+  $('#attention-dialog').setAttribute('aria-label', project.status === 'waiting_input' ? '需要澄清的需求' : '计划确认');
   panel.hidden = project.status !== 'blocked';
   if (panel.hidden) return;
   const feedback = blockerFeedback(project);
+  $('#attention-dialog .drawer-heading h2').textContent = '团队处理状态';
+  $('#attention-dialog').setAttribute('aria-label', '团队处理状态');
   $('#blocker-reason').textContent = feedback.reason;
   html('#blocker-context', feedback.context);
   $('#blocker-request').textContent = feedback.request;
-  $('#blocker-instruction').placeholder = feedback.hint;
-  $('#blocker-raw').textContent = projectSummary() || '未记录详细原因。';
+  $('#blocker-raw').textContent = project.summary || '未记录详细原因。';
   const checks = project.checks.filter(check => check.status !== 'passed' && check.output);
   html('#blocker-evidence', checks.map(check => `<details><summary>${escape(check.title)}</summary><p><code>${escape(check.command)}</code></p><pre>${escape(check.output)}</pre></details>`).join(''));
-  $('#blocker-timeout').hidden = !feedback.timeout;
-  $('#blocker-timeout').textContent = feedback.timeout ? '可在“检查团队配置”中调整该员工的超时，下一轮生效。' : '';
-  // 定期刷新仅更新证据，保留用户正在输入的修复要求；切换目标时清空。
-  const owner = `${project.id}:${project.active_goal_id}`;
-  if (panel.dataset.owner !== owner) { $('#blocker-instruction').value = ''; $('#blocker-intent').value = 'repair'; panel.dataset.owner = owner; }
-  panel.querySelectorAll('button, textarea, select').forEach(control => { control.disabled = busy || !!project.historical || project.active; });
+  $('#blocker-timeout').hidden = true;
+  $('#blocker-timeout').textContent = '';
+
 }
 
 // renderProject 更新任务与证据区域，保留用户打开的测试详情。
@@ -246,7 +246,7 @@ function renderProject() {
   $('#leader-records').hidden = !recordsOwner?.isLead;
   $('#project-title').textContent = project.name; document.title = homeVisible ? '办公室总览 · GoalHub' : `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
-  html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'queued' ? '<button class="secondary" data-action="pause">暂停排队</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['blocked', 'waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'blocked' ? '查看原因并处理' : project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
+  html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'queued' ? '<button class="secondary" data-action="pause">暂停排队</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['blocked', 'waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'blocked' ? '查看团队状态' : project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
   $('#project-actions').querySelectorAll('button').forEach((button) => { button.disabled = busy; });
   $('#goal-text').textContent = project.goal;
   const stage = project.status === 'completed' ? 4 : project.status === 'awaiting_approval' ? 2 : project.resume_phase === 'execute' ? 3 : 1;
@@ -477,19 +477,6 @@ document.addEventListener('submit', async (event) => {
     const answers = collectQuestionAnswers(event.target, project.questions.filter(item => item.answer === null));
     await api(`/projects/${selected}/answer`, { answers }); await refresh(); toast('回答已记录，继续执行');
   } catch (error) { toast(error.message); button.disabled = false; }
-});
-
-// submitBlocker 把修复要求交给原目标，保留已有源码与失败证据再重试。
-$('#blocker-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  if (busy || project?.historical || project?.status !== 'blocked') return;
-  const content = $('#blocker-instruction').value.trim();
-  if (!content) { $('#blocker-instruction').focus(); return; }
-  const id = selected;
-  busy = true; renderBlocker();
-  try { await api(`/projects/${id}/steer`, { content, intent: $('#blocker-intent').value }); toast('处理意见已记录，正在重新尝试'); }
-  catch (error) { toast(error.message); }
-  finally { busy = false; await refresh(); }
 });
 
 // 任务控制在服务端等待进程停止，再恢复可继续的模块。

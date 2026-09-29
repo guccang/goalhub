@@ -63,9 +63,9 @@ test('选项与补充内容一起提交，自定义回答和旧问题不需要�
 test('普通资料阻断不提示超时，真实超时和验收失败提供对应处理方向', () => {
   const project = { goal: '游戏', summary: '连续三轮未能推进：JSON 校验通过。缺少原版证据，基准尚未冻结。。自动执行已停止，请查看失败原因。', tasks: [{ title: '冻结基准', done_when: '依据齐全', status: 'pending' }], checks: [] };
   const feedback = blockerFeedback(project);
-  assert.equal(feedback.timeout, false); assert.ok(feedback.reason.includes('缺少原版证据')); assert.ok(feedback.context.includes('冻结基准')); assert.ok(!feedback.reason.includes('JSON 校验通过'));
+  assert.equal(feedback.timeout, false); assert.ok(feedback.reason.includes('未通过检查')); assert.ok(feedback.context.includes('冻结基准')); assert.ok(!feedback.reason.includes('JSON 校验通过'));
   assert.equal(blockerFeedback({ ...project, summary: 'Agent 执行超时，已停止进程' }).timeout, true);
-  assert.match(blockerFeedback({ ...project, checks: [{ title: '保存后重启恢复', status: 'failed' }] }).reason, /保存后重启恢复/);
+  assert.match(blockerFeedback({ ...project, checks: [{ title: '保存后重启恢复', status: 'failed' }] }).reason, /未通过检查/);
 });
 
 test('每个阶段的提示词都明确提问结构，例子不再要求字符串问题', () => {
@@ -79,8 +79,10 @@ test('每个阶段的提示词都明确提问结构，例子不再要求字符�
 test('审查阻断展示中间原因和任务反馈，不再只取末句', () => {
   const result = '测试通过。最终Review尚未解决：当前计划缺少最终Acceptance之后的独立审查步骤。需负责人安排审查员重新审查。未执行正式构建或改写审查结论。';
   const feedback = blockerFeedback({ status: 'blocked', summary: `连续三轮未能推进：${result}。自动执行已停止`, tasks: [{ title: '修复评估发现的问题', status: 'pending', description: '审查本轮证据', result }] });
-  assert.match(feedback.reason, /缺少最终Acceptance之后的独立审查步骤/);
-  assert.match(feedback.reason, /需负责人安排审查员/);
+  assert.match(feedback.reason, /未通过检查/);
+  assert.doesNotMatch(feedback.reason, /Acceptance|Review|审查员/);
+  assert.match(feedback.context, /<details/);
+  assert.match(feedback.request, /无需分析报错/);
   assert.ok(!feedback.reason.includes('未执行正式构建'));
   assert.match(feedback.context, /执行反馈/); assert.match(feedback.context, /审查本轮证据/);
 });

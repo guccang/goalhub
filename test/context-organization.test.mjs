@@ -63,8 +63,8 @@ test('最新宿主失败压过旧验收，提示处理环境且不要求再解�
   const run = f.store.beginRun(id, 'planner', '输入'); f.store.finishRun(run, 'failed', 'spawn codex ENOENT');
   f.store.update(id, { status: 'blocked', summary: '连续三轮未能推进：spawn codex ENOENT。自动执行已停止', resume_phase: 'plan' });
   const feedback = blockerFeedback(f.store.detail(id));
-  assert.match(feedback.reason, /ENOENT/); assert.doesNotMatch(feedback.reason, /未通过验收/);
-  assert.match(feedback.request, /无需修改产品需求/);
+  assert.doesNotMatch(feedback.reason, /ENOENT/); assert.doesNotMatch(feedback.reason, /未通过验收/);
+  assert.match(feedback.request, /无需分析报错/);
   const context = organizeContext(JSON.parse(f.orchestrator.context(id)), 'planner');
   assert.equal(context.state.blocker.kind, 'host'); assert.equal(context.state.checks[0].evidenceStatus, 'historical');
   assert.equal(context.state.checks[0].output, undefined);

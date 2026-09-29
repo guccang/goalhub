@@ -22,6 +22,10 @@ test('员工面板的确认和回答入口可用，离线时禁止操作', () =>
   assert.equal(control.disabled, false); assert.equal(control.dataset.officeControl, 'attention'); assert.equal(control.textContent, '查看并确认计划');
   view.project.status = 'waiting_input'; OfficeView.prototype.renderControls.call(view);
   assert.equal(control.disabled, false); assert.equal(control.textContent, '回答问题');
+  view.project.status = 'blocked'; OfficeView.prototype.renderControls.call(view);
+  assert.equal(control.textContent, '查看团队状态');
+  assert.match(view.find('#office-control-hint').textContent, /无需你提供修复意见/);
+  assert.doesNotMatch(view.find('#office-send').textContent, /修复/);
   view.online = false; OfficeView.prototype.renderControls.call(view); assert.equal(control.disabled, true);
 });
 
