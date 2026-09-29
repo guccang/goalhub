@@ -5,7 +5,7 @@ import { Runtime } from '../lib/runtime.mjs';
 import { windowsArguments } from '../lib/command.mjs';
 import { Store } from '../lib/store.mjs';
 import { validateWork, validateEvaluation, validateDispatch } from '../lib/protocol.mjs';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -22,6 +22,35 @@ test('真实 PowerShell 不经外层展开，变量及非零退出码完整保�
   const result = await handle.done;
   assert.equal(result.error, ''); assert.equal(result.code, 7);
   assert.match(output, /41\r?\n42/);
+});
+
+// 验证截图对应的 File 模式，中文在存储前完整保留，脚本开关和作用域不变。
+test('PowerShell File 中文标准输出和错误输出按 UTF-8 采集，参数与退出码不变', { skip: process.platform !== 'win32' }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'goalhub-中文 encoding-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(join(directory, 'verify scope.ps1'), '\ufeffparam([switch]$Review, [string]$Label)\n[Console]::WriteLine("PASS 中文验收：$Review / $Label")\n[Console]::WriteLine($PSScriptRoot)\n[Console]::Error.WriteLine("中文错误诊断")\nexit 7', 'utf8');
+  const output = { stdout: [], stderr: [] };
+  const handle = await new Runtime('.').command('powershell -NoProfile -ExecutionPolicy Bypass -File "verify scope.ps1" -Review -Label "中文 $value %PATH% & 尾\\\\"', directory,
+    // 分开校验两个管道，防止错误流被启动器重新格式化。
+    (kind, line) => output[kind].push(line));
+  const result = await handle.done;
+  assert.equal(result.error, ''); assert.equal(result.code, 7);
+  assert.deepEqual(output.stdout, ['PASS 中文验收：True / 中文 $value %PATH% & 尾\\', realpathSync.native(directory)]);
+  assert.deepEqual(output.stderr, ['中文错误诊断']);
+});
+
+// 验证命令文本与编码命令共用启动器，不破坏变量或二次解码中文。
+test('PowerShell Command 与 EncodedCommand 中文输出完整保留', { skip: process.platform !== 'win32' }, async () => {
+  const script = "$word='中文😀'; [Console]::WriteLine($word); [Console]::Error.WriteLine('诊断中文'); exit 9";
+  for (const suffix of [`-Command "${script}"`, `-EncodedCommand ${Buffer.from(script, 'utf16le').toString('base64')}`]) {
+    const output = { stdout: [], stderr: [] };
+    const handle = await new Runtime('.').command(`powershell -NoProfile ${suffix}`, process.cwd(),
+      // 保存完整行并区分流类型，以检查 Unicode 和标准错误的原样传递。
+      (kind, line) => output[kind].push(line));
+    const result = await handle.done;
+    assert.equal(result.error, ''); assert.equal(result.code, 9);
+    assert.deepEqual(output, { stdout: ['中文😀'], stderr: ['诊断中文'] });
+  }
 });
 
 test('Windows 普通命令保留引号、中文、组合命令及失败退出码', { skip: process.platform !== 'win32' }, async () => {
