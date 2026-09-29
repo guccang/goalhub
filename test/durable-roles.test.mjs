@@ -44,3 +44,16 @@ test('规划保留构建状态但移除历史原始日志，完整上下文对�
   assert.match(input, /goalhub.delivery.json/);
   assert.equal(context.delivery.lastBuild.evidence, '历史重复日志');
 });
+
+// 验证每个执行阶段均携带个人计划约束，同时保留角色权限及最终结果协议。
+test('所有员工阶段先制定至少两项个人 TODO 并独立验证目标', () => {
+  const value = project();
+  for (const role of ['planner', 'coordinator', 'developer', 'evaluator', 'final-review']) {
+    const employee = assignEmployee(null, value, role, 'planner');
+    const input = employeePrompt(phasePrompt(role, { context: JSON.stringify({ goal: value.goal, employees: [] }), task: { title: '实现数独' } }), employee, value);
+    for (const rule of ['先制定并上报个人 TODO 执行计划，再开始实际执行', '至少有两项独立 TODO', '1. 完成目标', '2. 测试目标', '复杂任务必须按依赖和可验证的阶段继续拆解', '实际完成后才标记完成', '验证失败或受阻时保留未完成状态', '结束本轮前更新计划', '必须遵守当前角色权限', '最终回复必须是单个 JSON 对象']) {
+      assert.ok(input.includes(rule), role + ' 缺少规则：' + rule);
+    }
+    assert.doesNotMatch(input, /commentary 或工作计划事件/);
+  }
+});
