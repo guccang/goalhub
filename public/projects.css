@@ -136,3 +136,8 @@ body:has(dialog[open]) { overflow:hidden; }
 .office-view .office-scene-footer { flex-wrap:wrap; }
 .office-camera { display:flex; flex-wrap:wrap; gap:4px; }
 @media(max-height:500px) { .home-offices { grid-template-columns:repeat(auto-fit,minmax(0,min(100%,320px))); } }
+
+/* 办公地点仅在填写后显示，长地址自动换行，不压缩办公室场景。 */
+.home-office-location { margin:0; padding:8px 16px; color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
+.home-office-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-right:16px; }
+.home-office-footer .text-button { flex-shrink:0; font-size:12px; }

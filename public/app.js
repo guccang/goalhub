@@ -133,12 +133,16 @@ function renderHome() {
     let card = homeCards.get(item.id);
     if (!card) {
       const element = document.createElement('article'); element.className = 'home-office office-scene-card'; element.dataset.id = item.id;
-      element.innerHTML = `<header class="office-scene-heading"><button class="text-button" data-project="${escape(item.id)}"></button><span></span></header><div class="home-scene"></div><p class="home-office-progress"></p>`;
+      element.innerHTML = `<header class="office-scene-heading"><button class="text-button" data-project="${escape(item.id)}"></button><span></span></header><p class="home-office-location" hidden></p><div class="home-scene"></div><div class="home-office-footer"><p class="home-office-progress"></p><button class="text-button" data-office-location="${escape(item.id)}">设置办公地点</button></div>`;
       card = { element, project: item, visible: false, frame: null }; homeCards.set(item.id, card); $('#home-offices').append(element); homeObserver.observe(element);
     }
     card.project = item; card.element.querySelector('button').textContent = item.name;
     card.element.querySelector('header span').textContent = labels[item.status] || item.status;
-    card.element.querySelector('p').textContent = `任务 ${item.done_count}/${item.task_count} · 工作中 ${item.office?.actors.filter(actor => actor.state === 'working').length || 0}`;
+    const location = card.element.querySelector('.home-office-location');
+    location.textContent = item.office_location ? `办公地点：${item.office_location}` : '';
+    location.hidden = !item.office_location;
+    card.element.querySelector('[data-office-location]').textContent = item.office_location ? '修改办公地点' : '设置办公地点';
+    card.element.querySelector('.home-office-progress').textContent = `任务 ${item.done_count}/${item.task_count} · 工作中 ${item.office?.actors.filter(actor => actor.state === 'working').length || 0}`;
     syncHomeFrame(card);
   }
   $('#home-offices-empty').hidden = visible.length > 0;
@@ -159,6 +163,30 @@ $('#show-office-on-home').addEventListener('change', async event => {
   try { await api(`/projects/${id}/display`, { showOfficeOnHome: value }); const item = projects.find(item => item.id === id); if (item) item.settings.showOfficeOnHome = value; renderHome(); }
   catch (error) { if (selected === id) input.checked = !value; toast(error.message); }
   finally { input.disabled = false; }
+});
+
+// editOfficeLocation 固定本次编辑的项目，轮询与切换项目不会覆盖输入。
+function editOfficeLocation(id) {
+  const item = projects.find(item => item.id === id);
+  if (!item) return;
+  const form = $('#office-location-form');
+  form.dataset.projectId = id;
+  $('#office-location-project').textContent = item.name;
+  form.elements.officeLocation.value = item.office_location || '';
+  $('#office-location-error').textContent = '';
+  $('#office-location-dialog').showModal();
+  form.elements.officeLocation.focus();
+}
+// saveOfficeLocation 允许清空地点，并在成功后刷新对应的总览卡片。
+$('#office-location-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget, id = form.dataset.projectId, button = form.querySelector('[type=submit]');
+  button.disabled = true;
+  try {
+    await api(`/projects/${id}/office-location`, { officeLocation: form.elements.officeLocation.value });
+    $('#office-location-dialog').close(); await refresh(); toast('办公地点已保存');
+  } catch (error) { $('#office-location-error').textContent = error.message; }
+  finally { button.disabled = false; }
 });
 
 // navigation 展示真实项目及任务完成进度。
@@ -331,6 +359,7 @@ async function action(name) {
   // 顶部直接定位需要用户处理的内容，避免长页面遗漏待办。
   if (name === 'attention') { openPanel('attention-dialog'); const panel = $(project.status === 'blocked' ? '#blocker-panel' : project.status === 'waiting_input' ? '#question-panel' : '#plan-preview'); panel.scrollIntoView({ block: 'center' }); panel.querySelector('textarea, button')?.focus({ preventScroll: true }); return; }
   if (name === 'employee-details') { office.select(office.selected); return; }
+  if (name === 'office-location') { $('#project-tools').open = false; editOfficeLocation(selected); return; }
   if (name === 'manage-team') { $('#project-tools').open = false; await employees.open(selected); return; }
   if (name === 'new') { panels.open(); return; }
   if (name === 'edit-plan') { panels.edit(); return; }
@@ -365,6 +394,7 @@ document.addEventListener('click', async (event) => {
     if (button.dataset.panel) openPanel(button.dataset.panel);
     if (button.dataset.action) await action(button.dataset.action);
     if (button.dataset.project) await selectProject(button.dataset.project);
+    if (button.dataset.officeLocation) editOfficeLocation(button.dataset.officeLocation);
     if (button.dataset.tab) {
       tab = button.dataset.tab;
       for (const name of ['tasks', 'activity']) { $(`#${name}-view`).hidden = tab !== name; $(`#tab-${name}`).setAttribute('aria-selected', String(tab === name)); }

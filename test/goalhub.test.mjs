@@ -867,3 +867,37 @@ test('员工首次可修复重试沿用分配，仍需真实测试和最终验�
   assert.equal(f.counts.developer, 2); assert.equal(f.counts.coordinator, 0);
   assert.equal(f.counts.final, 1); assert.ok(f.counts.test > 0);
 });
+
+// 办公地点是可选项目元数据，真实接口保存后不被目标快照或重启覆盖。
+test('办公地点可创建、修改和清空，项目隔离且跨迭代持久化', async t => {
+  const f = fixture(t), other = f.store.create({ name: '没有地点的项目' }), server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const base = `http://127.0.0.1:${server.address().port}/api`;
+  // post 使用真实 HTTP 验证字段校验及项目展示信息保存。
+  const post = (path, value) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+  const before = f.store.project(f.project.id);
+  const goal = f.store.enqueueGoal(f.project.id, { title: '另一个目标', goal: '验证元数据', settings: before.settings }, false);
+  assert.equal(other.office_location, '');
+  const path = `/projects/${f.project.id}/office-location`;
+  assert.equal((await post(path, { officeLocation: '  上海 · 张江办公室  ' })).status, 200);
+  assert.equal(f.store.project(f.project.id).office_location, '上海 · 张江办公室');
+  assert.equal(f.store.forGoal(f.project.id, goal).project(f.project.id).office_location, '上海 · 张江办公室');
+  assert.equal(f.store.detail(f.project.id, goal).office_location, '上海 · 张江办公室');
+  f.store.forGoal(f.project.id, goal).update(f.project.id, { summary: '目标更新' });
+  assert.equal(f.store.project(f.project.id).office_location, '上海 · 张江办公室');
+  assert.equal(f.store.project(f.project.id).status, before.status);
+  assert.equal(f.store.project(f.project.id).active_goal_id, before.active_goal_id);
+  assert.equal(f.store.project(other.id).office_location, '');
+  for (const value of [null, 123, {}, '地'.repeat(201)]) assert.equal((await post(path, { officeLocation: value })).status, 400);
+  assert.equal((await post(path, {})).status, 400);
+  const reopened = new Store(join(f.directory, 'state.sqlite'));
+  try { assert.equal(reopened.project(f.project.id).office_location, '上海 · 张江办公室'); } finally { reopened.close(); }
+  const list = await (await fetch(base + '/projects?offices=1')).json();
+  assert.equal(list.find(item => item.id === f.project.id).office_location, '上海 · 张江办公室');
+  assert.equal((await post(path, { officeLocation: '   ' })).status, 200);
+  assert.equal(f.store.project(f.project.id).office_location, '');
+  const created = await post('/projects/register', { name: '带地点的新项目', mode: 'new', path: '', officeLocation: '杭州 · 未来科技城' });
+  assert.equal(created.status, 201);
+  assert.equal((await created.json()).office_location, '杭州 · 未来科技城');
+});
