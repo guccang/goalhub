@@ -438,7 +438,7 @@ async function action(name) {
     const id = selected, retrying = name === 'start' && project.status === 'blocked';
     $('#project-actions').querySelectorAll('button').forEach((button) => { button.disabled = true; });
     await api(`/projects/${id}/${name}`, {});
-    toast({ pause: '已暂停，进度已保留', start: retrying ? '已按原配置重新尝试，结果以验收记录为准' : '已继续执行', evaluate: '已安排进度评估' }[name] || '操作完成');
+    toast({ pause: '已暂停，进度已保留', start: retrying ? '已交给主管重新安排，结果以验收记录为准' : '已继续执行', evaluate: '已安排进度评估' }[name] || '操作完成');
   } finally { busy = false; await refresh(); }
 }
 

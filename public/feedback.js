@@ -51,6 +51,6 @@ export function blockerFeedback(project) {
   const task = project.tasks?.find(item => ['running', 'blocked'].includes(item.status)) || project.tasks?.find(item => !['done', 'cancelled'].includes(item.status));
   return { timeout, reason,
     context: '<details class="feedback-diagnostics"><summary>查看技术详情（可跳过）</summary><dl class="feedback-context">' + contextRow('内部任务', task?.title) + contextRow('任务说明', task?.description) + contextRow('执行反馈', task?.result) + contextRow('原完成条件', task?.done_when) + '</dl></details>',
-    request: '你无需分析报错或提供技术修复方案。技术问题由主管组织项目员工处理，只有项目需求不明确时才会请你澄清。',
+    request: '你无需分析报错或提供技术修复方案。自动执行当前已停止；点击“交给主管恢复执行”可重新安排团队处理，只有项目需求不明确时才会请你澄清。',
     hint: '选填：你希望最终达到什么效果。无需填写代码、命令或修复步骤。' };
 }
