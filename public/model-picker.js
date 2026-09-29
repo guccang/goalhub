@@ -26,10 +26,10 @@ export function attachModelPicker(input, api, hostType) {
       }
       if (input.value && !result.models.some(model => model.model === input.value)) select.append(new Option(`${input.value}（当前值，未在目录中）`, input.value));
       select.value = input.value; select.disabled = !result.supported; select.dataset.unavailable = String(!result.supported); note.textContent = result.message;
-    } catch {
+    } catch (error) {
       if (request !== generation || host !== hostType() || !input.isConnected) return;
       list.replaceChildren(); select.replaceChildren(new Option('模型读取失败', '')); select.disabled = true;
-      note.textContent = '无法读取模型目录。请检查已保存的认证配置与登录状态后重试；已填写的模型保持不变。';
+      note.textContent = `无法读取模型目录：${error.message || '未知错误'}。已填写的模型保持不变。`;
     } finally { if (request === generation) refresh.disabled = false; }
   }
   select.addEventListener('change', () => { input.value = select.value; input.dispatchEvent(new Event('input', { bubbles: true })); });

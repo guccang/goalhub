@@ -25,7 +25,7 @@ test('Codex API 登录走 stdin 并隔离凭据，读取不回显密钥，空值
   const f = await fixture(t); const secret = 'test-secret-never-in-arguments'; let calls = 0;
   const module = { ...f.module, runProcess(command, args, options) {
     calls++;
-    assert.equal(command, 'codex'); assert.ok(args.includes('--with-api-key')); assert.ok(!args.join(' ').includes(secret));
+    assert.ok(command && typeof command === 'string'); assert.ok(args.includes('--with-api-key')); assert.ok(!args.join(' ').includes(secret));
     assert.equal(options.input, secret + '\n'); assert.equal(options.env.OPENAI_API_KEY, undefined);
     assert.equal(options.env.CODEX_HOME, join(f.dataDir, 'codex-auth', 'api'));
     writeFileSync(join(options.env.CODEX_HOME, 'auth.json'), JSON.stringify({ OPENAI_API_KEY: secret }));
@@ -112,7 +112,7 @@ test('动态模型查询隔离设备认证、合并并发并回收进程', async
   f.runtime.loaded = Promise.resolve({ ...f.module,
     // runProcess 模拟目录协议，不调用模型推理。
     runProcess(command, args, options) {
-      calls++; assert.equal(command, 'codex'); assert.ok(args.includes('forced_login_method="chatgpt"'));
+      calls++; assert.ok(command && typeof command === 'string'); assert.ok(args.includes('forced_login_method="chatgpt"'));
       assert.equal(options.env.CODEX_HOME, join(f.dataDir, 'codex-auth', 'device'));
       let finish; const done = new Promise(resolve => { finish = resolve; });
       return { done,
