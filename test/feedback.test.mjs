@@ -74,3 +74,13 @@ test('每个阶段的提示词都明确提问结构，例子不再要求字符�
     assert.ok(input.includes('"questions":[{"question":')); assert.ok(input.includes('选项最多3个')); assert.ok(!input.includes('"questions":["'));
   }
 });
+
+// 历史失败摘要末尾的工作边界说明不能遮住真正的审查阻断。
+test('审查阻断展示中间原因和任务反馈，不再只取末句', () => {
+  const result = '测试通过。最终Review尚未解决：当前计划缺少最终Acceptance之后的独立审查步骤。需负责人安排审查员重新审查。未执行正式构建或改写审查结论。';
+  const feedback = blockerFeedback({ status: 'blocked', summary: `连续三轮未能推进：${result}。自动执行已停止`, tasks: [{ title: '修复评估发现的问题', status: 'pending', description: '审查本轮证据', result }] });
+  assert.match(feedback.reason, /缺少最终Acceptance之后的独立审查步骤/);
+  assert.match(feedback.reason, /需负责人安排审查员/);
+  assert.ok(!feedback.reason.includes('未执行正式构建'));
+  assert.match(feedback.context, /执行反馈/); assert.match(feedback.context, /审查本轮证据/);
+});

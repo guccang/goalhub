@@ -47,11 +47,13 @@ export function blockerFeedback(project) {
   if (blocker?.kind === 'host') return { timeout: false, reason: `员工宿主未能正常启动或连接：${blocker.message}`, context: `<dl class="feedback-context">${contextRow('当前目标', project.goal)}${contextRow('当前阶段', blocker.phase === 'planner' ? '负责人规划尚未启动成功' : '员工宿主执行')}</dl>`, request: '请先处理宿主程序路径、登录或运行环境，再按原配置重试。无需修改产品需求或重复回答范围问题。', hint: '填写已完成的环境处理；若确实改变产品范围，请选择“修改需求”。' };
   const raw = project.summary || '', timeout = /执行超时|运行超时|timed?\s*out|timeout/i.test(raw);
   const failedCheck = project.checks?.find(check => check.status === 'failed' && (!blocker?.runId || blocker.kind === 'test'));
-  const task = project.tasks?.find(item => item.status === 'running' || item.status === 'blocked') || project.tasks?.find(item => item.status !== 'done');
+  const task = project.tasks?.find(item => item.status === 'running' || item.status === 'blocked') || project.tasks?.find(item => !['done', 'cancelled'].includes(item.status));
   const cleaned = raw.replace(/^连续三轮未能推进[：:]/, '').replace(/。自动执行已停止[\s\S]*$/, '').trim();
   const sentences = cleaned.split(/(?<=[。！？\n])/).filter(value => /[\p{L}\p{N}]/u.test(value));
-  const reason = timeout ? '当前员工的执行时间已达到配置的上限。' : failedCheck ? `“${failedCheck.title}”未通过验收。` : compactText(sentences.at(-1) || '当前任务尚未满足完成条件。', 260);
-  return { timeout, reason, context: `<dl class="feedback-context">${contextRow('当前目标', project.goal)}${contextRow('卡在哪一步', task?.title || '项目执行')}${contextRow('原完成条件', task?.done_when)}</dl>`,
+  const problems = sentences.filter(value => /失败|未通过|尚未|缺少|需.*(?:安排|审查|修复)|无法|过期|不一致|阻断/.test(value) && !/^\s*未执行/.test(value));
+  const detail = compactText(problems.join('') || cleaned || '当前任务尚未满足完成条件。', 600);
+  const reason = timeout ? '当前员工的执行时间已达到配置的上限。' : failedCheck ? `“${failedCheck.title}”未通过验收。${detail}` : detail;
+  return { timeout, reason, context: `<dl class="feedback-context">${contextRow('当前目标', project.goal)}${contextRow('卡在哪一步', task?.title || '项目执行')}${contextRow('任务说明', task?.description)}${contextRow('执行反馈', task?.result)}${contextRow('验收输出', failedCheck?.output)}${contextRow('原完成条件', task?.done_when)}</dl>`,
     request: timeout ? '请说明是否调整该员工的超时，或将当前任务拆成更小的步骤。' : failedCheck ? '请说明预期结果或补充复现条件；若验收要求需要调整，请明确调整内容。' : '请针对上方问题说明处理方式：补充缺少的信息，或明确哪些要求需要调整、延期。',
     hint: timeout ? '例如：将当前任务拆分为可独立验证的几个步骤。' : '例如：哪些内容必须保留，哪些可以延期；缺少的信息是什么。' };
 }
