@@ -125,7 +125,7 @@ test('计划增量修订保留编号，任务版本变化使旧成果失效', ()
       store.db.prepare('UPDATE tasks SET handoff=?,result=? WHERE id=?').run('旧接口', '旧结果', before.id);
     plan.tasks[0].description = '第二版'; store.plan(p.id, plan);
       const after = store.tasks(p.id)[0]; assert.equal(after.id, before.id); assert.equal(after.version, 2); assert.equal(store.taskCurrent(p.id, before), false);
-      assert.equal(after.handoff, ''); assert.equal(after.result, '');
+      assert.doesNotMatch(after.handoff, /旧接口/); assert.match(after.handoff, /尚未提交实现说明/); assert.equal(after.result, '');
   } finally { store.close(); }
 });
 

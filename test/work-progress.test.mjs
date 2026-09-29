@@ -49,6 +49,7 @@ test('需求快照按目标读取，需求变化后不把旧范围标为有效',
   const project = store.create({ name: '进展测试', goal: '第一目标', settings: {} });
   const first = project.active_goal_id, input = store.requirementInput(project.id);
   store.db.prepare('INSERT INTO requirement_snapshots VALUES(?,?,?,?,?)').run(project.id, first, input.revision, JSON.stringify({ summary: '第一范围', sourceRevision: input.revision }), new Date().toISOString());
+  store.publishTaskDocuments(project.id, { summary: '第一范围', sourceRevision: input.revision, sourceIds: ['goal'], included: [], deferred: [], excluded: [] });
   assert.equal(store.detail(project.id).requirements.status, 'consolidated');
   const second = store.enqueueGoal(project.id, { goal: '第二目标' }, false);
   assert.equal(store.detail(project.id, second).requirements.effective, null);
