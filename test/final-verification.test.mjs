@@ -52,14 +52,22 @@ function fixture(t, options = {}) {
   engine.context = () => JSON.stringify({ goal: project.goal, tasks: store.tasks(project.id), checks: store.checks(project.id), employees: [] });
   // agent 模拟审查员真正读取新证据，返回 done 也不能绕过后续校验。
   engine.agent = async (control, role, cwd, prompt, working, employeeId) => {
+    if (role === 'issue-review') {
+      calls.push('supervisor');
+      return JSON.stringify(options.reply?.status === 'needs_input' && !options.teamIssue
+        ? { action: 'needs_input', summary: '需要确认需求范围', questions: ['本轮需要哪些功能？'] }
+        : { action: 'repair', summary: '团队处理', repair: '重新构建并复核证据' });
+    }
+    if (role === 'coordinator') return JSON.stringify({ needsInput: false, assignee: 'developer', summary: '安排修复' });
+    if (employeeId === 'developer') return JSON.stringify({ status: 'done', summary: '完成内部修复' });
     calls.push('reviewer');
     assert.equal(employeeId, 'evaluator');
     assert.match(prompt, /重新独立审查/);
     assert.match(prompt, /不重跑会覆盖证据/);
     if (options.interrupt) { control.cancelled = true; engine.assertActive(control); }
     if (options.throwReview) throw new Error('审查宿主连接失败');
-    if (!options.stale) state.hash = digest();
-    return JSON.stringify(options.reply || { status: 'done', summary: '已重新独立审查本轮证据' });
+    if (!options.stale || options.recover && calls.filter(value => value === 'reviewer').length > 1) state.hash = digest();
+    return JSON.stringify(options.teamIssue && calls.filter(value => value === 'reviewer').length > 1 ? { status: 'done', summary: '已重新独立审查本轮证据' } : options.reply || { status: 'done', summary: '已重新独立审查本轮证据' });
   };
   // evaluate 模拟最后的只读目标核对，前面的审查校验必须已经通过。
   engine.evaluate = async () => { calls.push('evaluation'); return { action: 'complete', summary: '完成' }; };
@@ -84,7 +92,8 @@ test('审查员返回完成但仍使用旧哈希时不可发布，阻断保留�
   assert.match(f.store.project(f.project.id).summary, /摘要过期/);
   const task = f.store.tasks(f.project.id)[1];
   assert.equal(task.status, 'blocked'); assert.equal(task.assignee, 'evaluator');
-  assert.equal(f.state.publications, 0); assert.equal(f.store.tasks(f.project.id).length, 2);
+  assert.equal(f.calls.filter(value => value === 'supervisor').length, 3);
+  assert.equal(f.state.publications, 0); assert.ok(f.store.tasks(f.project.id).length > 2);
 });
 
 test('普通验收失败时不启动审查员，保留具体命令失败原因', async t => {
@@ -94,7 +103,7 @@ test('普通验收失败时不启动审查员，保留具体命令失败原因',
   assert.match(result.reason, /acceptance.*失败/); assert.ok(!f.calls.includes('reviewer'));
 });
 
-test('审查返回 retry 或宿主异常时不会派开发反复修复', async t => {
+test('审查返回 retry 或宿主异常时由主管安排有界修复', async t => {
   for (const options of [{ reply: { status: 'retry', summary: '缺少本轮独立证据' } }, { throwReview: true }]) {
     const f = fixture(t, options);
     f.engine.start(f.project.id);
@@ -106,7 +115,7 @@ test('审查返回 retry 或宿主异常时不会派开发反复修复', async t
   }
 });
 
-test('重新审查遇到真实外部问题时保留提问并停止发布', async t => {
+test('重新审查提出问题须经主管确认需求歧义后才能提问', async t => {
   const f = fixture(t, { reply: { status: 'needs_input', summary: '缺少外部授权', questions: ['请提供授权信息'] } });
   f.engine.start(f.project.id);
   await f.engine.controls.get(f.project.id).promise;
@@ -147,4 +156,26 @@ test('通用开发修复只重跑非审查验收，后续仍须独立刷新审�
   const result = await finalVerification(f.engine, f.control, '.', f.store.tasks(f.project.id));
   assert.equal(result.passed, true);
   assert.deepEqual(f.calls.filter(value => value !== 'checkpoint'), ['build', 'acceptance', 'reviewer', 'review']);
+});
+
+// 暂时的审查失败由团队自动恢复，不向用户索要技术处理意见。
+test('审查首次失败后自动重新验证，恢复后正常交付', async t => {
+  const f = fixture(t, { stale: true, recover: true });
+  f.engine.start(f.project.id);
+  await f.engine.controls.get(f.project.id).promise;
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.calls.filter(value => value === 'reviewer').length, 2);
+  assert.equal(f.state.publications, 1);
+  assert.equal(f.store.questions(f.project.id).length, 0);
+});
+
+// 审查误报技术提问时只分流一次，并让修复员工处理后重新审查。
+test('审查误报安装包技术提问时主管安排修复，不阻塞用户或重复审核', async t => {
+  const f = fixture(t, { teamIssue: true, reply: { status: 'needs_input', summary: '安装包源码过期', questions: ['请说明如何重建安装包'] } });
+  f.engine.start(f.project.id);
+  await f.engine.controls.get(f.project.id).promise;
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.calls.filter(value => value === 'supervisor').length, 1);
+  assert.equal(f.store.questions(f.project.id).length, 0);
+  assert.ok(f.store.tasks(f.project.id).some(task => task.title === '主管安排处理技术问题'));
 });

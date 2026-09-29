@@ -3,7 +3,7 @@ import { renderEmployeeWork } from './work-progress.js';
 import { OfficeScene } from './office-scene.js';
 import { paintPortrait } from './vendor/munder-difflin/portrait-art.js';
 
-const states = { idle: '待命', working: '工作中', success: '本轮结束', paused: '已暂停', blocked: '需要处理', error: '执行失败' };
+const states = { idle: '待命', working: '工作中', success: '本轮结束', paused: '已暂停', blocked: '等待处理', error: '执行失败' };
 // escape 在角色卡片与消息记录中安全显示模型和用户文本。
 function escape(value) { return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
 // time 使用本地时间展示实际记录时间。
@@ -163,15 +163,15 @@ export class OfficeView {
     const project = this.project, pending = this.busy || this.controlBusy || this.sending || !this.online;
     const run = this.find('#office-run-control'), review = this.find('#office-review-control');
     run.dataset.officeControl = ['blocked', 'awaiting_approval', 'waiting_input'].includes(project.status) ? 'attention' : project.active || project.status === 'queued' ? 'pause' : 'start';
-    run.textContent = project.status === 'blocked' ? '查看原因并处理' : project.status === 'awaiting_approval' ? '查看并确认计划' : project.status === 'waiting_input' ? '回答问题' : project.status === 'completed' ? '项目已完成' : project.status === 'queued' ? '暂停排队' : project.active ? '暂停当前目标' : '继续执行';
+    run.textContent = project.status === 'blocked' ? '查看团队状态' : project.status === 'awaiting_approval' ? '查看并确认计划' : project.status === 'waiting_input' ? '回答问题' : project.status === 'completed' ? '项目已完成' : project.status === 'queued' ? '暂停排队' : project.active ? '暂停当前目标' : '继续执行';
     run.disabled = pending || project.status === 'completed';
     review.disabled = pending || !project.active || project.status !== 'running' || this.snapshot.actors.some((actor) => actor.isLead && actor.state === 'working');
     this.find('#office-steer-form').hidden = !project.active_goal_id || project.status === 'completed';
     const locked = ['completed', 'waiting_input', 'awaiting_approval'].includes(project.status);
     this.find('#office-instruction').disabled = pending || locked;
     this.find('#office-send').disabled = pending || locked;
-    this.find('#office-send').textContent = this.sending ? '正在处理指令…' : project.settings?.executionMode === 'parallel' ? '发送给主管' : project.status === 'blocked' ? '提交修复要求并重试' : '发送指令并继续';
-    this.find('#office-control-hint').textContent = project.status === 'blocked' ? '自动执行已停止。请先查看失败原因并处理，再选择是否重试；已有进度已保留。' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? '点击上方按钮处理当前目标；其他目标可在下方目标列表切换查看。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : (project.queue?.assignments?.filter(item => item.goalId === project.active_goal_id).map(item => item.label).join('；') || '控制作用于当前选中的目标。减少动态只影响画面，不会暂停 Agent。');
+    this.find('#office-send').textContent = this.sending ? '正在处理指令…' : project.settings?.executionMode === 'parallel' ? '发送给主管' : project.status === 'blocked' ? '补充项目需求' : '发送指令并继续';
+    this.find('#office-control-hint').textContent = project.status === 'blocked' ? '技术问题由主管组织员工处理，无需你提供修复意见。你可以补充项目需求，已有成果已保留。' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? '点击上方按钮处理当前目标；其他目标可在下方目标列表切换查看。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : (project.queue?.assignments?.filter(item => item.goalId === project.active_goal_id).map(item => item.label).join('；') || '控制作用于当前选中的目标。减少动态只影响画面，不会暂停 Agent。');
   }
 
   // renderHistory 展示真实交接与已持久化的补充指令。
