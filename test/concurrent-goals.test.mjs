@@ -73,6 +73,23 @@ function fixture(t, pipeline = false) {
   return { store, git, runtime, scheduler, held, calls, folders, active, directory, id: project.id, max: () => max, diagnostics: () => JSON.stringify(store.goals(project.id).map(goal => [goal.goal, goal.status, goal.summary])) };
 }
 
+// 修订一个目标的要求只重排该目标，其他目标的工作与计划保持不变。
+test('多目标补充要求先重规划，保留旧计划历史且不影响另一目标', async t => {
+  const f = fixture(t), first = f.store.enqueueGoal(f.id, { goal: 'A' }), second = f.store.enqueueGoal(f.id, { goal: 'B' });
+  f.scheduler.pump(f.id);
+  await waitUntil(() => f.held.has('A') && f.held.has('B'), f.diagnostics);
+  const secondTask = f.store.tasks(f.id, second)[0].id;
+  await f.scheduler.steer(f.id, '缺少资料登记待定，更新验收后继续', first);
+  assert.equal(f.store.tasks(f.id, second)[0].id, secondTask);
+  assert.equal(f.store.forGoal(f.id, second).instructions(f.id).length, 0);
+  // B 正占用负责人，正常结束它的轮次后 A 才能获得规划员工锁。
+  f.held.get('B')(); f.held.delete('B');
+  await waitUntil(() => f.calls.filter(call => call.goal === 'A' && call.role === 'planner').length === 2, f.diagnostics);
+  await waitUntil(() => f.held.has('A'), f.diagnostics);
+  assert.equal(f.store.tasks(f.id, first).length, 1);
+  assert.equal(f.store.events(f.id, { goalId: first, kind: 'plan.superseded' }).length, 1);
+});
+
 test('两个员工并发开发独立 worktree，第三目标等待并自动接续，主分支保留全部成果', async t => {
   const f = fixture(t), ids = ['A', 'B', 'C'].map(goal => f.store.enqueueGoal(f.id, { goal }));
   f.scheduler.pump(f.id);

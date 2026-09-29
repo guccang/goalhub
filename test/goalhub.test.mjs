@@ -454,10 +454,52 @@ test('办公室补充指令保存进度并恢复真实开发，要求进入后�
   assert.equal(f.store.project(f.project.id).status, 'completed');
   assert.ok(f.stopped.includes('developer'));
   assert.equal(f.store.instructions(f.project.id)[0].content, '请先验证中文输入，再完成结果文件');
-  assert.equal(f.store.tasks(f.project.id).length, 2);
+  assert.equal(f.store.tasks(f.project.id).length, 1);
+  assert.equal(f.counts.planner, 2);
+  assert.ok(f.calls.filter(call => call.role === 'planner')[1].input.includes('请先验证中文输入'));
+  assert.equal(f.store.events(f.project.id, { kind: 'plan.superseded' }).length, 1);
   assert.ok(f.calls.filter((call) => call.role === 'developer')[1].input.includes('请先验证中文输入'));
   assert.equal(f.store.events(f.project.id, { kind: 'control.steer' }).length, 1);
   await assert.rejects(f.orchestrator.steer(f.project.id, '新的要求'), /项目已完成/);
+});
+
+// 用户允许延期后必须更新旧验收，不能直接回到要求全量资料的执行轮次。
+test('回答缺项可待定后先重新规划，旧失败验收保留历史且不再阻断', async t => {
+  const f = fixture(t, {
+    // planner 第一版故意要求无法取得的资料，第二版按用户答复验证已确认功能。
+    planner({ count, options }) {
+      if (count === 1) return { ...plan, checks: [{ ...plan.checks[0], command: 'require-all-evidence', expectation: '全部外部资料必须齐全' }] };
+      assert.ok(options.input.includes('缺少就标记待定，先实现已有数据'));
+      assert.ok(options.input.includes('require-all-evidence'));
+      assert.ok(existsSync(join(options.cwd, 'retained.txt')));
+      return plan;
+    },
+    // developer 首轮产生已有成果并提问，答复后交由新计划继续。
+    developer({ count, options }) {
+      if (count === 1) {
+        writeFileSync(join(options.cwd, 'retained.txt'), '保留已有成果');
+        return { status: 'needs_input', summary: '缺少完整资料', questions: ['缺少资料如何处理？'] };
+      }
+    },
+  });
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '未进入等待输入');
+  assert.equal(f.store.project(f.project.id).status, 'waiting_input');
+  const server = createApp(f);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/projects/${f.project.id}/answer`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers: [{ id: f.store.questions(f.project.id)[0].id, answer: '缺少就标记待定，先实现已有数据' }] }),
+  });
+  assert.equal(response.status, 200);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '答复后未完成', 20000);
+  assert.equal(f.store.project(f.project.id).status, 'completed');
+  assert.equal(f.counts.planner, 2);
+  assert.equal(f.store.checks(f.project.id)[0].command, 'verify-answer');
+  const previous = JSON.parse(f.store.events(f.project.id, { kind: 'plan.superseded' })[0].content);
+  assert.equal(previous.checks[0].command, 'require-all-evidence');
+  assert.equal(readFileSync(join(f.git.paths(f.project.id).repo, 'retained.txt'), 'utf8'), '保留已有成果');
 });
 
 // 新接口与原控制接口共用状态机和来源校验，并暴露可本地加载的上游模块。
