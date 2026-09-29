@@ -16,7 +16,7 @@ data/task-documents/<taskId>_YYYYMMDD_HHMMSS/
   modules.md
   handoff.md
   checks/<checkId>.md
-  assignments/<assignmentId>/
+  assignments/<YYYYMMDD-HHMMSS-NNNN>/
     assignment.md
     plan.md
     handoff.md
@@ -73,3 +73,5 @@ SQLite 中的正文保留为历史发布副本；运行时需求、分工、验�
 执行 `node scripts/migrate-task-documents.mjs <data-directory>` 导出旧目标及分工。
 首次导出读取旧数据库正文，重复运行仅校验文件。数据库本身、配置和历史记录保留。
 页面提供 requirements.md、sources.md、assignment.md、plan.md 和 handoff.md 的受限查看入口。
+
+分工目录采用首次生成的本地时间与四位随机数字，例如 `20260929-214530-0738`。assignmentId 仍用于身份和依赖关联，SQLite 仅保存其目录映射。目录生成时检查重名；改派、重试和重启复用原目录。旧目录通过离线迁移脚本统一改名并更新 Markdown 路径。

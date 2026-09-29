@@ -1,7 +1,7 @@
 // 本文件验证 Markdown 是任务正文的唯一来源，数据库仅保留索引和运行事实。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync, unlinkSync, rmSync, readdirSync } from 'node:fs';
+import { mkdtempSync, renameSync, existsSync, readFileSync, writeFileSync, unlinkSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../lib/store.mjs';
@@ -102,7 +102,7 @@ test('写入日志在重启后重放，保留固定格式和代码块内的标�
   const doc = parseDocument(readFileSync(task.documents.handoff, 'utf8'), handoffSections);
   doc.sections.Implementation = '接口示例\n```md\n## Next\n```\n恢复后存在';
   const text = documentText('Handoff', doc.metadata, doc.sections);
-  const files = { [`assignments/${task.id}/handoff.md`]: text };
+  const files = { [f.store.documents.assignmentRelative(group, task.id, 'handoff.md')]: text };
   writeFileSync(join(group.directory, 'transaction.md'), documentText('Document transaction', { files }, { Recovery: '恢复' }));
   f.reopen(); assert.match(f.store.tasks(f.project.id)[0].handoff, /恢复后存在/);
   assert.equal(parseDocument(text, handoffSections).sections.Next, doc.sections.Next);
@@ -112,14 +112,40 @@ test('平台事务回滚时恢复旧文档，提交后文件与状态同时保�
   const f = fixture(t), group = f.store.documentGroup(f.project.id), task = f.store.tasks(f.project.id)[0];
   const old = readFileSync(task.documents.handoff, 'utf8');
   f.store.db.exec('BEGIN');
-  f.store.documents.batch(group.directory, { [`assignments/${task.id}/handoff.md`]: old.replace('尚未提交实现说明。', '未提交的结果') });
+  f.store.documents.batch(group.directory, { [f.store.documents.assignmentRelative(group, task.id, 'handoff.md')]: old.replace('尚未提交实现说明。', '未提交的结果') });
   f.store.db.exec('ROLLBACK');
   f.store.documents.finishPublications();
   assert.equal(readFileSync(task.documents.handoff, 'utf8'), old);
   f.store.db.exec('BEGIN');
-  f.store.documents.batch(group.directory, { [`assignments/${task.id}/handoff.md`]: old.replace('尚未提交实现说明。', '正式提交的结果') });
+  f.store.documents.batch(group.directory, { [f.store.documents.assignmentRelative(group, task.id, 'handoff.md')]: old.replace('尚未提交实现说明。', '正式提交的结果') });
   f.store.db.exec('COMMIT');
   // 故意不清理事务日志，重启根据已提交标识完成恢复。
   f.reopen();
   assert.match(f.store.tasks(f.project.id)[0].handoff, /正式提交的结果/);
+});
+
+// 目录名是稳定展示名称，内部身份保持 UUID，旧引用迁移后仍能读取相同正文。
+test('分工目录采用时间与四位随机数字，改派重启后稳定，旧目录可重复迁移', t => {
+  const f = fixture(t), task = f.store.tasks(f.project.id)[0], group = f.store.documentGroup(f.project.id);
+  const name = f.store.documents.assignmentDirectory(group, task.id);
+  assert.match(name, /^\d{8}-\d{6}-\d{4}$/);
+  f.store.assignTask(f.project.id, task.id, 'quality', '改派');
+  assert.equal(f.store.documents.assignmentDirectory(group, task.id), name);
+  f.reopen();
+  assert.equal(f.store.documents.assignmentDirectory(group, task.id), name);
+  const newRoot = join(group.directory, 'assignments', name), legacy = join(group.directory, 'assignments', task.id);
+  renameSync(newRoot, legacy);
+  f.store.db.prepare('DELETE FROM task_assignment_directories WHERE goal_id=? AND assignment_id=?').run(group.goal_id, task.id);
+  const source = join(group.directory, 'handoff.md');
+  writeFileSync(source, readFileSync(source, 'utf8').replaceAll(`assignments/${name}/`, `assignments/${task.id}/`));
+  writeFileSync(join(legacy, 'evidence', 'notes.md'), '真实证据');
+  f.store.documents.migrateAssignmentDirectories(group);
+  const migrated = f.store.documents.assignmentDirectory(group, task.id);
+  assert.match(migrated, /^\d{8}-\d{6}-\d{4}$/);
+  assert.equal(existsSync(legacy), false);
+  assert.equal(readFileSync(join(group.directory, 'assignments', migrated, 'evidence', 'notes.md'), 'utf8'), '真实证据');
+  assert.ok(readFileSync(source, 'utf8').includes(`assignments/${migrated}/handoff.md`));
+  f.store.documents.migrateAssignmentDirectories(group);
+  assert.equal(f.store.documents.assignmentDirectory(group, task.id), migrated);
+  assert.equal(f.store.tasks(f.project.id)[0].id, task.id);
 });
