@@ -31,7 +31,7 @@ test('员工面板区分任务完成和自报进展，转义内容并隔离其�
   const actor = { id: 'jim', run: { id: 'run' }, events: [{ kind: 'agent.output', content: '<script>已做</script>' }], context: { work: { task: { title: '本轮战斗' } } } };
   const project = { goal: '游戏', tasks: [{ id: 'one', title: '战斗', assignee: 'jim', status: 'running', check_ids: ['check'] }, { id: 'two', title: '存档', assignee: 'jim', status: 'pending', depends_on: ['one'] }], checks: [{ id: 'check', title: '受击', expectation: '生命减少', command: 'node test.mjs', status: 'pending' }], runs: [{ id: 'run', employee_id: 'jim', status: 'running' }] };
   const html = renderEmployeeWork(project, actor);
-  for (const text of ['目标是什么', '正在做什么', '计划与剩余任务', '已经做了什么', '上下文有哪些', '剩余 2 项', '生命减少', '尚未执行本项验收']) assert.ok(html.includes(text));
+  for (const text of ['目标是什么', '正在做什么', '计划与剩余任务', '已经做了什么', '上下文有哪些', '尚未上报执行计划']) assert.ok(html.includes(text));
   assert.ok(html.includes('&lt;script&gt;')); assert.ok(!html.includes('<script>'));
   assert.match(html, /暂无已通过验收的任务/);
   assert.doesNotMatch(renderEmployeeWork({ ...project, runs: [] }, actor), /本轮战斗|&lt;script&gt;/);
@@ -71,3 +71,22 @@ test('执行记录 API 返回运行中的流事件，静态进展模块可加载
   assert.equal((await fetch(`${url}/work-progress.js`)).status, 200);
 });
 
+
+// 验证个人计划使用最新员工上报，隔离主管分工及其他轮次。
+test('员工计划只展示本轮最新个人步骤，不展示项目分工', () => {
+  const events = [
+    { kind: 'agent.item.completed', content: JSON.stringify({ item: { type: 'todo_list', items: [{ text: '旧步骤', completed: false }] } }) },
+    { kind: 'agent.item.completed', content: JSON.stringify({ item: { type: 'todo_list', items: [{ text: '<检查资源>', completed: true }, { text: '调整界面', completed: false }] } }) },
+  ];
+  const actor = { id: 'kelly', run: { id: 'run' }, progress: progressEvents(events) };
+  const project = { tasks: [{ id: 'a', assignee: 'kelly', title: '主管分配的大任务', status: 'pending' }, { id: 'b', assignee: 'jim', title: '其他员工任务', status: 'pending' }], runs: [{ id: 'run' }] };
+  const html = renderEmployeeWork(project, actor);
+  assert.ok(html.includes('已完成 1 / 2 项，剩余 1 项'));
+  assert.match(html, /&lt;检查资源&gt;/);
+  assert.match(html, /调整界面/);
+  assert.doesNotMatch(html.split('<h3>计划与剩余任务</h3>')[1].split('</section>')[0], /旧步骤/);
+  assert.doesNotMatch(html, /主管分配的大任务|其他员工任务|项目完整计划与分工|项目共/);
+  assert.match(renderEmployeeWork({ ...project, runs: [] }, actor), /尚未上报执行计划/);
+  const cleared = progressEvents([...events, { kind: 'agent.item.completed', content: JSON.stringify({ item: { type: 'todo_list', items: [] } }) }]);
+  assert.match(renderEmployeeWork(project, { ...actor, progress: cleared }), /尚未上报执行计划/);
+});

@@ -22,7 +22,7 @@ export function progressEvents(events = []) {
     let data;
     try { data = JSON.parse(event.content); } catch { /* 旧事件为普通文本。 */ }
     const item = data?.item;
-    let title = '', text = '', category = '';
+    let title = '', text = '', category = '', steps;
     if (item?.type === 'file_change') {
       title = event.kind.endsWith('started') ? '正在修改文件' : '文件修改已记录'; category = 'tool';
       text = (item.changes || []).map(change => change.path).join('\n');
@@ -31,7 +31,8 @@ export function progressEvents(events = []) {
       text = item.command || ''; category = 'tool';
     } else if (item?.type === 'todo_list') {
       title = '员工本轮工作计划'; category = 'plan';
-      text = (item.items || []).map(step => `${step.completed ? '已做' : '待做'}：${step.text}`).join('\n');
+      steps = (item.items || []).map(step => ({ text: String(step.text || ''), completed: step.completed === true }));
+      text = steps.map(step => `${step.completed ? '已做' : '待做'}：${step.text}`).join('\n');
     } else if (item?.type === 'agent_message') {
       title = '员工进展说明'; text = item.text || ''; category = 'report';
     } else if (!data && /agent\.(item\.(?:completed|started)|output|message|text)$/.test(event.kind)) {
@@ -43,7 +44,7 @@ export function progressEvents(events = []) {
     } else if (event.kind === 'agent.failed' || event.kind === 'test.failed') {
       title = '执行错误'; text = event.content; category = 'error';
     }
-    if (text) rows.push({ id: event.id, at: event.created_at, title, text, category });
+    if (text || category === 'plan') rows.push({ id: event.id, at: event.created_at, title, text, category, ...(steps ? { steps } : {}) });
   }
   return rows;
 }
@@ -78,18 +79,15 @@ export function renderEmployeeWork(project, actor) {
   const latest = activities.at(-1);
   const requirement = project.requirements;
   const effective = requirement?.status === 'consolidated' ? requirement.effective : null;
-  const checks = project.checks || [], names = new Map(project.office?.actors.map(item => [item.id, item.name]) || []);
   const dependencies = tasks.filter(task => own.some(item => item.depends_on?.includes(task.id)));
   const done = own.filter(task => task.status === 'done');
-  // taskRow 展示真实任务状态、依赖、完成条件与验收证据，不从日志推算完成率。
-  function taskRow(task) {
-    const relevant = checks.filter(check => task.check_ids?.includes(check.id));
-    const waiting = tasks.filter(item => task.depends_on?.includes(item.id) && item.status !== 'done');
-    return `<li><details data-work-detail="task-${escape(task.id)}"><summary><span class="work-status">${escape(workLabels[task.status] || task.status)}</span> ${escape(task.title)} <small>${escape(names.get(task.assignee) || task.assignee || '待分配')}</small></summary><p>${escape(task.description)}</p>${waiting.length ? `<p>等待：${escape(waiting.map(item => item.title).join('、'))}</p>` : ''}<h4>完成条件</h4><p>${escape(task.done_when || '计划未记录具体完成条件')}</p><h4>如何验证</h4>${relevant.map(check => `<details data-work-detail="check-${escape(check.id)}"><summary>${escape(check.title)} · ${escape(workLabels[check.status] || check.status)}</summary><p>${escape(check.expectation || '未记录验收说明')}</p><p>${check.checked_at ? `最近检查：${escape(new Date(check.checked_at).toLocaleString())}` : '尚未执行本项验收'}</p><pre>${escape(check.command || '')}</pre>${check.output ? `<pre>${escape(check.output)}</pre>` : ''}</details>`).join('') || '<p>未关联验收项</p>'}</details></li>`;
-  }
+  // 员工执行计划只取本轮最新上报，不用主管分配的项目任务推算个人步骤。
+  const plan = activities.filter(row => row.category === 'plan').at(-1);
+  const steps = plan?.steps;
+  const completedSteps = steps?.filter(step => step.completed).length || 0;
   return `<div class="employee-workspace"><section><h3>目标是什么</h3><p class="work-goal">${escape(effective?.summary || project.goal || '尚未设置目标')}</p>${!effective ? '<p class="office-help">显示原始目标；当前有效需求尚未整理或已发生变更。</p>' : ''}</section>
     <section class="work-current"><h3>正在做什么</h3><strong>${escape(current?.title || (run?.status === 'running' ? actor.activity : own.some(task => task.status !== 'done') ? '等待下一项任务执行' : '当前没有进行中的任务'))}</strong>${reports.length ? `<p>${escape(reports.at(-1).text)}</p><small>员工最近说明 · ${escape(new Date(reports.at(-1).at).toLocaleString())} · 尚不代表验收通过</small>` : '<p class="office-help">尚无员工进展说明。</p>'}${latest && latest.category !== 'report' ? `<p class="work-last-activity">最近活动：${escape(latest.title)} · ${escape(new Date(latest.at).toLocaleString())}<br>${escape(latest.category === 'tool' ? activityDescription(latest) : latest.text)}</p>` : ''}<details data-work-detail="progress"><summary>查看本轮工作动态</summary>${renderProgress(events, run?.status)}</details></section>
-    <section><h3>计划与剩余任务</h3><p>该员工已完成 ${done.length} / ${own.length} 项，剩余 ${own.length - done.length} 项。项目共 ${tasks.length} 项，已完成 ${tasks.filter(task => task.status === 'done').length} 项。</p>${own.length === 1 && own[0].status !== 'done' ? '<p class="office-help">当前计划仅给该员工分配了一个任务，尚未记录更细的阶段进度。</p>' : ''}<ol class="work-plan">${own.map(taskRow).join('') || '<li>当前目标尚未分配任务。</li>'}</ol><details data-work-detail="project-plan"><summary>项目完整计划与分工</summary><ol class="work-plan">${tasks.map(taskRow).join('')}</ol></details></section>
+    <section><h3>计划与剩余任务</h3>${steps?.length ? `<p>本轮执行计划已完成 ${completedSteps} / ${steps.length} 项，剩余 ${steps.length - completedSteps} 项。</p><p class="office-help">状态来自员工上报，不代表项目验收结果。</p><ol class="work-plan">${steps.map(step => `<li><span class="work-status">${step.completed ? '已完成' : '待执行'}</span> ${escape(step.text)}</li>`).join('')}</ol>` : plan?.text && !steps ? `<p>${escape(plan.text)}</p>` : '<p class="office-help">该员工本轮尚未上报执行计划。</p>'}</section>
     <section><h3>已经做了什么</h3>${done.map(task => `<article><h4>${escape(task.title)}</h4><p>${escape(task.result || '任务已完成，但没有记录成果摘要。')}</p></article>`).join('') || '<p>暂无已通过验收的任务。过程中的修改和员工说明见上方工作动态。</p>'}</section>
     <section><h3>上下文有哪些</h3><p>当前任务依据以下资料推进；本轮实际收到的资料以执行记录为准。</p><details data-work-detail="requirements"><summary>当前需求范围与例外</summary>${['included', 'deferred', 'excluded'].map((key, index) => `<h4>${['必须完成', '允许延期', '明确排除'][index]}</h4><ul>${(effective?.[key] || []).map(item => `<li>${escape(item)}</li>`).join('') || '<li>未记录</li>'}</ul>`).join('')}</details><details data-work-detail="dependencies"><summary>前置任务与交接成果（${dependencies.length}）</summary>${dependencies.map(task => `<h4>${escape(task.title)} · ${escape(workLabels[task.status] || task.status)}</h4><p>${escape(task.result || '尚无交接成果')}</p>`).join('') || '<p>计划未登记前置任务。</p>'}</details><details data-work-detail="input"><summary>本轮实际输入概览</summary><p>${escape(context.requirements?.effective?.summary || '此轮未记录可解析的需求概览，请在诊断中查看实际提示词。')}</p><p>任务：${escape(context.work?.task?.title || '未记录')}</p><p>工作仓库：${escape(context.project?.repository || '未记录')}</p><p>本轮关联任务：${escape(context.work?.tasks?.map(task => task.title).join('、') || '未记录')}</p>${(context.work?.tasks || []).filter(task => task.status === 'done').map(task => `<p>前置交接「${escape(task.title)}」：${escape(task.result || '该旧轮次未随输入传递完成结果')}</p>`).join('')}<p>本轮修复要求：${escape(context.work?.repair?.content || '')} ${escape(context.work?.repairInstructions?.map(item => item.content).join('；') || '无')}</p></details></section>
     <section><h3>执行记录</h3>${(project.runs || []).filter(item => item.employee_id === actor.id).map(item => `<button class="run-row" data-run="${escape(item.id)}">${escape(new Date(item.created_at).toLocaleString())} · ${escape(workLabels[item.status] || item.status)} · 查看进展与结果</button>`).join('') || '<p>尚未开始执行。</p>'}</section></div>`;
