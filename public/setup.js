@@ -25,7 +25,7 @@ export class SetupFlow {
     this.find('#back-host').addEventListener('click', () => this.openHost(true).catch(error => this.error(error)));
     this.find('#host-dialog').addEventListener('cancel', event => { event.preventDefault(); this.closeHost(); });
     this.find('#create-form').addEventListener('submit', event => { event.preventDefault(); this.create(event.currentTarget); });
-    this.find('#create-form').addEventListener('change', () => { const form = this.find('#create-form'); form.querySelector('[type=submit]').textContent = form.elements.generateTeam.checked ? '保存需求并搭建团队' : form.elements.configureTeam.checked ? '保存需求并配置员工' : '生成拆解预览'; });
+    this.find('#create-form').addEventListener('change', () => { const form = this.find('#create-form'); form.querySelector('[type=submit]').textContent = form.elements.generateTeam.checked ? '保存需求并搭建团队' : form.elements.configureTeam.checked ? '保存需求并配置员工' : '提交需求'; });
     setInterval(() => { if ((this.projectId || this.find('#host-dialog').open) && !this.polling && !this.pending) this.poll().catch(error => this.error(error)); }, 1500);
   }
   // find 读取向导内固定元素。
@@ -40,12 +40,13 @@ export class SetupFlow {
       if (this.projectId) this.drafts.set(this.projectId, Object.fromEntries([...form.elements].filter(field => field.name && (field.type !== 'checkbox' || field.checked)).map(field => [field.name, field.value])));
       form.reset();
       form.elements.language.value = project.settings.language || 'zh-CN';
+      form.elements.confirmationMode.value = 'auto';
       const draft = this.drafts.get(project.id);
       if (draft) for (const [name, value] of Object.entries(draft)) {
         const field = form.elements[name];
         if (field) { if (field.type === 'checkbox') field.checked = value === 'on'; else field.value = value; }
       }
-      form.querySelector('[type=submit]').textContent = form.elements.generateTeam.checked ? '保存需求并搭建团队' : form.elements.configureTeam.checked ? '保存需求并配置员工' : '生成拆解预览';
+      form.querySelector('[type=submit]').textContent = form.elements.generateTeam.checked ? '保存需求并搭建团队' : form.elements.configureTeam.checked ? '保存需求并配置员工' : '提交需求';
       this.projectId = project.id;
       this.find('#create-error').textContent = '';
       this.api('/host').then(state => { this.state = state; this.dirty = !state.revision; this.paint(); }).catch(error => { this.find('#create-error').textContent = error.message; });
@@ -182,10 +183,10 @@ export class SetupFlow {
       const configureTeam = values.configureTeam === 'on', generateTeam = values.generateTeam === 'on';
       const created = await this.api(`/projects/${projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes), agentTimeoutMinutes: Number(values.agentTimeoutMinutes), testTimeoutSeconds: Number(values.testTimeoutSeconds) } });
       this.find('#goal-dialog').close();
-      this.drafts?.delete(projectId); if (this.projectId === projectId) form.reset(); button.textContent = '生成拆解预览'; await this.selectProject(created.id); if (this.selectGoal && created.viewed_goal_id) await this.selectGoal(created.viewed_goal_id); await this.refresh();
+      this.drafts?.delete(projectId); if (this.projectId === projectId) form.reset(); button.textContent = '提交需求'; await this.selectProject(created.id); if (this.selectGoal && created.viewed_goal_id) await this.selectGoal(created.viewed_goal_id); await this.refresh();
       if (generateTeam) { await this.buildTeam(created.id); }
       else if (configureTeam) { document.querySelector('#manage-employees').click(); this.toast('请配置员工，保存后点击继续执行开始规划'); }
-      else this.toast(created.status === 'queued' ? '目标已加入等待队列' : '正在生成拆解预览');
+      else this.toast(created.status === 'queued' ? '目标已加入等待队列' : '正在提交需求');
     } catch (error) { this.find('#create-error').textContent = error.message; }
     finally { this.creating = false; this.paint(); }
   }

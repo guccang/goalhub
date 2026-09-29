@@ -9,6 +9,21 @@ import { ProjectGit } from '../lib/git.mjs';
 import { GoalScheduler, KeyLock } from '../lib/goal-scheduler.mjs';
 import { createApp } from '../lib/app.mjs';
 import { team } from '../lib/employees.mjs';
+import { OfficeView } from '../public/office-view.js';
+
+// 验证员工面板在等待确认时提供真正可点击的入口。
+test('员工面板的确认和回答入口可用，离线时禁止操作', () => {
+  const nodes = new Map();
+  const view = { project: { status: 'awaiting_approval', active_goal_id: 'goal' }, online: true, snapshot: { actors: [] },
+    // find 用最小节点替身检查实际渲染方法的输出。
+    find(selector) { if (!nodes.has(selector)) nodes.set(selector, { dataset: {} }); return nodes.get(selector); } };
+  OfficeView.prototype.renderControls.call(view);
+  const control = view.find('#office-run-control');
+  assert.equal(control.disabled, false); assert.equal(control.dataset.officeControl, 'attention'); assert.equal(control.textContent, '查看并确认计划');
+  view.project.status = 'waiting_input'; OfficeView.prototype.renderControls.call(view);
+  assert.equal(control.disabled, false); assert.equal(control.textContent, '回答问题');
+  view.online = false; OfficeView.prototype.renderControls.call(view); assert.equal(control.disabled, true);
+});
 
 // waitUntil 等待真实异步流程，超时显示各目标状态。
 async function waitUntil(predicate, diagnostics = () => '', timeout = 30000) {
@@ -118,6 +133,34 @@ test('运行中可通过 API 新增目标，选择目标后预览和暂停不会
   assert.equal(f.store.forGoal(f.id, a.active_goal_id).project(f.id).status, 'paused');
   assert.equal(f.scheduler.isGoalActive(f.id, b.active_goal_id), true);
   await request('/pause', { goalId: b.active_goal_id });
+});
+
+// 冲突时验证主分支不变、现场不清理，解决后可完成真正的合并提交。
+test('API 默认自动执行，显式人工确认保留；切换自动复用三份计划并按容量排队', async t => {
+  const f = fixture(t), server = createApp({ store: f.store, git: f.git, runtime: f.runtime, orchestrator: f.scheduler });
+  server.hostSetup.verified = () => ({ hostType: 'codex', model: '', reasoningEffort: '' });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { await server.hostSetup.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+  const base = `http://127.0.0.1:${server.address().port}/api/projects/${f.id}`;
+  // post 通过真实接口验证默认配置与已有目标迁移。
+  const post = async (path, value) => { const response = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) }); const data = await response.json(); assert.equal(response.status, 200, JSON.stringify(data)); return data; };
+  const auto = await post('/goals', { goal: 'D', autoStart: false });
+  assert.equal(auto.settings.confirmationMode, 'auto');
+  const ids = [];
+  for (const goal of ['A', 'B', 'C']) {
+    const created = await post('/goals', { goal, settings: { confirmationMode: 'manual' } }); ids.push(created.active_goal_id);
+    await waitUntil(() => f.store.forGoal(f.id, created.active_goal_id).project(f.id).status === 'awaiting_approval', f.diagnostics);
+  }
+  await waitUntil(() => !f.scheduler.controls.has(f.id));
+  assert.equal(f.held.size, 0); assert.equal(f.scheduler.state(f.id).awaitingApproval.length, 3);
+  const tasks = ids.map(id => f.store.tasks(f.id, id).map(task => task.id));
+  await post('/confirmation-mode', { mode: 'auto' });
+  await waitUntil(() => f.held.has('A') && f.held.has('B'), f.diagnostics);
+  assert.equal(f.scheduler.state(f.id).running, 2); assert.deepEqual(f.scheduler.state(f.id).waiting.map(goal => goal.id), [ids[2]]);
+  assert.equal(f.scheduler.state(f.id).awaitingApproval.length, 0);
+  assert.equal(f.calls.filter(call => call.role === 'planner').length, 3);
+  assert.deepEqual(ids.map(id => f.store.tasks(f.id, id).map(task => task.id)), tasks);
+  for (const id of ids) { const goal = f.store.forGoal(f.id, id).project(f.id); assert.equal(goal.settings.confirmationMode, 'auto'); assert.equal(goal.plan_approved, 1); }
 });
 
 // 冲突时验证主分支不变、现场不清理，解决后可完成真正的合并提交。

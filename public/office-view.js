@@ -86,7 +86,7 @@ export class OfficeView {
     this.find('#office-connection').textContent = `已同步 ${time(project.office.synchronizedAt)}`;
     this.find('#office-connection').classList.remove('offline');
     const progress = project.office.progress;
-    this.find('#office-progress').textContent = project.queue ? `并发 ${project.queue.running}/${project.queue.capacity} · 等待 ${project.queue.waiting.length} · 任务 ${progress.done}/${progress.total}` : `任务 ${progress.done}/${progress.total} · 测试 ${progress.passed}/${progress.checks} 通过`;
+    this.find('#office-progress').textContent = project.queue ? `并发 ${project.queue.running}/${project.queue.capacity} · 排队 ${project.queue.waiting.length}${project.queue.awaitingApproval?.length ? ` · 待确认 ${project.queue.awaitingApproval.length}` : ''} · 任务 ${progress.done}/${progress.total}` : `任务 ${progress.done}/${progress.total} · 测试 ${progress.passed}/${progress.checks} 通过`;
     this.renderRoster(); this.renderActor(); this.renderControls(); this.renderHistory();
   }
 
@@ -157,16 +157,16 @@ export class OfficeView {
     if (!this.project) return;
     const project = this.project, pending = this.busy || this.controlBusy || this.sending || !this.online;
     const run = this.find('#office-run-control'), review = this.find('#office-review-control');
-    run.dataset.officeControl = project.active || project.status === 'queued' ? 'pause' : 'start';
-    run.textContent = project.status === 'awaiting_approval' ? '等待计划确认' : project.status === 'completed' ? '项目已完成' : project.status === 'queued' ? '暂停排队' : project.active ? '暂停当前目标' : '继续执行';
-    run.disabled = pending || project.status === 'completed' || (!project.active && ['waiting_input', 'awaiting_approval'].includes(project.status));
+    run.dataset.officeControl = ['awaiting_approval', 'waiting_input'].includes(project.status) ? 'attention' : project.active || project.status === 'queued' ? 'pause' : 'start';
+    run.textContent = project.status === 'awaiting_approval' ? '查看并确认计划' : project.status === 'waiting_input' ? '回答问题' : project.status === 'completed' ? '项目已完成' : project.status === 'queued' ? '暂停排队' : project.active ? '暂停当前目标' : '继续执行';
+    run.disabled = pending || project.status === 'completed';
     review.disabled = pending || !project.active || project.status !== 'running' || this.snapshot.actors.some((actor) => actor.isLead && actor.state === 'working');
     this.find('#office-steer-form').hidden = !project.active_goal_id || project.status === 'completed';
     const locked = ['completed', 'waiting_input', 'awaiting_approval'].includes(project.status);
     this.find('#office-instruction').disabled = pending || locked;
     this.find('#office-send').disabled = pending || locked;
     this.find('#office-send').textContent = this.sending ? '正在保存并重新调度…' : '发送指令并继续';
-    this.find('#office-control-hint').textContent = ['waiting_input', 'awaiting_approval'].includes(project.status) ? '请通过主页面的待办入口完成问题回答或计划确认。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : '控制作用于当前选中的目标。减少动态只影响画面，不会暂停 Agent。';
+    this.find('#office-control-hint').textContent = ['waiting_input', 'awaiting_approval'].includes(project.status) ? '点击上方按钮处理当前目标；其他目标可在下方目标列表切换查看。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : '控制作用于当前选中的目标。减少动态只影响画面，不会暂停 Agent。';
   }
 
   // renderHistory 展示真实交接与已持久化的补充指令。
