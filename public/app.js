@@ -1,3 +1,19 @@
+
+// 点击遮罩时沿用取消事件，保留各弹窗的清理逻辑；内部拖拽到外部不误关闭。
+let backdropDialog = null;
+// outsideDialog 只判断弹窗边界外的遮罩，内容区留白不触发关闭。
+function outsideDialog(event) {
+  const dialog = event.target;
+  if (!(dialog instanceof HTMLDialogElement) || !dialog.open) return null;
+  const rect = dialog.getBoundingClientRect();
+  return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom ? dialog : null;
+}
+document.addEventListener('pointerdown', event => { backdropDialog = outsideDialog(event); });
+document.addEventListener('click', event => {
+  const dialog = outsideDialog(event), startedOutside = backdropDialog === dialog;
+  backdropDialog = null;
+  if (dialog && startedOutside && dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close();
+});
 // 启动引导使用外部模块，兼容仅允许同源脚本的内容安全策略。
 document.querySelector('#startup-retry').addEventListener('click', () => location.reload());
 try {

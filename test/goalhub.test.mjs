@@ -293,11 +293,14 @@ test('项目登记和目标 API 分离，计划可编辑且历史目标归属受
   // post 发送同源业务请求。
   const post = (path, value) => fetch(base + '/api' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
   const registered = await (await post('/projects/register', { name: '长期项目', path: '' })).json();
+  assert.deepEqual(registered.settings.employees, []);
   assert.equal(registered.status, 'ready');
   assert.equal(f.calls.length, 0);
   await server.hostSetup.save({ hostType: 'codex', model: '' });
   const probe = server.hostSetup.start(); await waitUntil(() => !server.hostSetup.job, '宿主未就绪');
   assert.equal((await post(`/projects/${registered.id}/goals`, { title: '首轮', goal: '首轮需求', hostTestId: probe.id, autoStart: false })).status, 200);
+  // 此测试验证计划编辑，显式配置团队后再写入带员工分配的计划。
+  f.store.saveEmployees(registered.id, f.store.project(f.project.id).settings.employees);
   const goalId = f.store.project(registered.id).active_goal_id;
   f.store.plan(registered.id, plan); f.store.update(registered.id, { status: 'awaiting_approval' });
   assert.equal((await post(`/projects/${registered.id}/plan`, { ...plan, summary: '修改后的总体计划' })).status, 200);
@@ -666,7 +669,7 @@ test('两人项目按自定义职位分配任务，负责人和执行宿主真�
   assert.equal(f.calls.find(call => call.role === 'final').model, 'lead-model');
   const snapshot = buildOfficeSnapshot(f.store, f.orchestrator, f.project.id);
   assert.equal(snapshot.actors.find(actor => actor.isLead).id, 'lead-pam');
-  assert.equal(snapshot.actors.find(actor => actor.id === 'lead-pam').name, 'Pam');
+  assert.equal(snapshot.actors.find(actor => actor.id === 'lead-pam').name, 'Michael');
   assert.equal(snapshot.actors.find(actor => actor.id === 'unity-worker').kind, 'employee');
   assert.ok(snapshot.messages.some(message => message.from === 'lead-pam' && message.to === 'unity-worker'));
   assert.ok(snapshot.messages.some(message => message.from === 'unity-worker' && message.to === 'lead-pam'));
@@ -753,7 +756,7 @@ test('旧职责迁移和重启保留项目员工与历史证据', t => {
     assert.equal(project.settings.teamVersion, 2);
     assert.equal(employees.find(employee => employee.isLead).id, 'planner');
     assert.equal(employees[1].position, '开发工程师');
-    assert.ok(employees[1].instructions); assert.equal(employees[1].name, 'Jim');
+    assert.ok(employees[1].instructions); assert.equal(employees[1].name, '历史名称');
     assert.equal(reopened.tasks(f.project.id)[0].assignee, 'developer');
     assert.equal(JSON.parse(reopened.run(runId).executor).name, '历史名称');
     const updated = employees.map(employee => ({ ...employee, position: employee.id === 'developer' ? '自定义客户端职位' : employee.position }));

@@ -14,7 +14,7 @@ import { team } from '../lib/employees.mjs';
 // proposal 构造具有项目专属分工的模型输出。
 function proposal() { return { summary: '以客户端交付与验证为核心组建团队', employees: [
   { character: 'michael', isLead: true, position: '游戏项目负责人', instructions: '分配客户端开发任务并核对测试证据', profileId: 'default' },
-  { character: 'jim', isLead: false, position: 'Unity 客户端工程师', instructions: '实现客户端功能并提交自动化验证结果', profileId: 'default' },
+  { name: '林舟', character: 'jim', isLead: false, position: 'Unity 客户端工程师', instructions: '实现客户端功能并提交自动化验证结果', profileId: 'default' },
 ] }; }
 
 // fixture 创建独立数据库与可停止宿主，提供 HTTP 请求和显式完成控制。
@@ -61,6 +61,7 @@ test('独立 God 使用自身配置生成草稿，保存前不改变项目团队
   draft.result.employees[1].position = '客户端主程';
   assert.equal((await f.request(path + '/employees', { employees: draft.result.employees })).status, 200);
   assert.equal(team(f.store.project(f.project.id))[1].position, '客户端主程');
+  assert.equal(team(f.store.project(f.project.id))[1].name, '林舟');
   assert.equal((await f.request(path + '/team-generation')).value.stale, true);
   const other = f.store.create({ name: '其他项目' });
   assert.equal((await f.request(`/projects/${other.id}/team-generation`)).value, null);

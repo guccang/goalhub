@@ -66,7 +66,7 @@ export class EmployeeManager {
     });
     this.detail.addEventListener('click', event => {
       const character = event.target.closest('[data-character]');
-      if (character) { const employee = this.current(); employee.character = character.dataset.character; employee.name = this.characterNames[employee.character]; this.render(); }
+      if (character) { const employee = this.current(); employee.character = character.dataset.character; this.render(); }
       if (event.target.closest('[data-remove-employee]')) { this.employees = this.employees.filter(item => item.id !== this.selected); this.selected = this.employees[0]?.id; this.render(); }
     });
     this.dialog.querySelector('#copy-team').onclick = () => this.copyTeam();
