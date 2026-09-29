@@ -23,3 +23,9 @@ test('规划协议保留任务能力并拒绝未知能力和倒置依赖', () =>
   plan.tasks[1].requiredCapability = 'magic'; assert.throws(() => validatePlan(JSON.stringify(plan)), /能力/);
   plan.tasks[1].requiredCapability = 'testing'; plan.tasks[0].dependsOn = ['qa']; assert.throws(() => validatePlan(JSON.stringify(plan)), /依赖/);
 });
+
+// 历史一次性职位先迁移为长期职位，不能被旧目标里的“测试”一词误分类。
+test('旧欢迎页面测试开发职位迁移后仍具备开发能力', () => {
+  const project = { settings: { employees: [{ id: 'developer', character: 'jim', enabled: true, isLead: false, position: '静态欢迎页面与冒烟测试开发工程师' }] } };
+  assert.deepEqual(team(project)[0].capabilities, ['development']);
+});
