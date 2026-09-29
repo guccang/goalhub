@@ -72,6 +72,7 @@ function fixture(t, behavior = {}) {
     // command 验证实际文件内容，避免仅靠模拟 Agent 的完成声明通过测试。
     async command(command, cwd, onLine) {
       counts.test++;
+      if (behavior.command) return behavior.command(command, cwd, onLine);
       assert.equal(command, 'verify-answer');
       const passed = existsSync(join(cwd, 'answer.txt')) && readFileSync(join(cwd, 'answer.txt'), 'utf8') === '42';
       onLine('stdout', passed ? '断言通过：answer=42' : '断言失败：answer!=42');
@@ -173,6 +174,26 @@ test('同项目两次迭代保留首轮证据，重启后协调者及开发会�
   f.store.resetSessions(id);
   assert.equal(f.store.latestSession(id, 'planner'), '');
   assert.equal(f.store.usage(id).total, 240);
+});
+
+// 修复建议必须真正更新持久化命令，后续任务和最终验收均读取新命令。
+test('失败命令由员工结构化修订后不再执行旧版本', async t => {
+  const executed = [];
+  let f;
+  f = fixture(t, {
+    developer({ options, count }) {
+      writeFileSync(join(options.cwd, 'answer.txt'), '42');
+      const check = f.store.checks(f.project.id)[0];
+      return { status: 'done', summary: '修复验收脚本入口', ...(count === 2 ? { checkUpdates: [{ id: check.id, previousCommand: check.command, command: 'verify-answer-v2', reason: '旧入口语法错误' }] } : {}) };
+    },
+    command(command) { executed.push(command); return { done: Promise.resolve({ code: command === 'verify-answer-v2' ? 0 : 1, error: '' }), stop() {} }; },
+  });
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '命令修复未完成');
+  assert.equal(f.store.project(f.project.id).status, 'completed', f.store.project(f.project.id).summary);
+  assert.deepEqual(executed, ['verify-answer', 'verify-answer-v2', 'verify-answer-v2']);
+  assert.equal(f.store.checks(f.project.id)[0].command, 'verify-answer-v2');
+  assert.equal(f.store.events(f.project.id, { kind: 'check.command.updated' }).length, 1);
 });
 
 // 未完成目标不能被新迭代覆盖，主分支在验收之前保持原有代码。
