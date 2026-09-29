@@ -1,4 +1,5 @@
 // 本文件组织用户反馈的上下文、明确问题和回答选项，不将执行日志作为表单说明。
+import { currentBlocker } from './context-state.js';
 
 // escapeFeedback 对模型和用户文本做 HTML 转义，防止反馈内容插入页面代码。
 export function escapeFeedback(value = '') { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]); }
@@ -42,8 +43,10 @@ export function collectQuestionAnswers(form, pending) {
 
 // blockerFeedback 依据实际失败类型给出处理方向，原始日志仍可展开核对。
 export function blockerFeedback(project) {
+  const blocker = currentBlocker(project);
+  if (blocker?.kind === 'host') return { timeout: false, reason: `员工宿主未能正常启动或连接：${blocker.message}`, context: `<dl class="feedback-context">${contextRow('当前目标', project.goal)}${contextRow('当前阶段', blocker.phase === 'planner' ? '负责人规划尚未启动成功' : '员工宿主执行')}</dl>`, request: '请先处理宿主程序路径、登录或运行环境，再按原配置重试。无需修改产品需求或重复回答范围问题。', hint: '填写已完成的环境处理；若确实改变产品范围，请选择“修改需求”。' };
   const raw = project.summary || '', timeout = /执行超时|运行超时|timed?\s*out|timeout/i.test(raw);
-  const failedCheck = project.checks?.find(check => check.status === 'failed');
+  const failedCheck = project.checks?.find(check => check.status === 'failed' && (!blocker?.runId || blocker.kind === 'test'));
   const task = project.tasks?.find(item => item.status === 'running' || item.status === 'blocked') || project.tasks?.find(item => item.status !== 'done');
   const cleaned = raw.replace(/^连续三轮未能推进[：:]/, '').replace(/。自动执行已停止[\s\S]*$/, '').trim();
   const sentences = cleaned.split(/(?<=[。！？\n])/).filter(value => /[\p{L}\p{N}]/u.test(value));

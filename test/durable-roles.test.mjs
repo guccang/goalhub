@@ -19,7 +19,7 @@ test('旧职责原文可查看但不注入规划、执行和验收，保存不�
   for (const role of ['planner', 'developer', 'final-review']) {
     const employee = assignEmployee(null, value, role, 'planner');
     const input = employeePrompt(phasePrompt(role, { context: JSON.stringify({ goal: value.goal, employees: [] }), task: { title: '实现数独' } }), employee, value);
-    assert.ok(input.startsWith('当前目标（本轮唯一产品目标）："新增数独小游戏"'));
+    assert.match(input, /当前需求：/); assert.match(input, /新增数独小游戏/);
     assert.doesNotMatch(input, /Hello GoalHub|欢迎页面验收负责人|仅创建/);
     assert.match(input, /Git 分支、提交和 worktree 由调度器管理/);
   }

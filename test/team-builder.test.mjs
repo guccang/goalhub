@@ -82,7 +82,9 @@ test('保存 God 方案自动把初始目标交给主管规划，重复保存不
     // 主管返回可验证计划，在人工确认处停止，断言不会提前调用开发员工。
     f.orchestrator.runtime.host = async options => {
       f.calls.push(options);
+      const input = f.store.requirementInput(id);
       return { done: Promise.resolve({ code: 0, finalMessage: JSON.stringify({ needsInput: false, summary: '拆分登录流程',
+        requirements: { summary: '完成 Unity 登录流程', included: ['完成 Unity 登录流程'], deferred: [], excluded: [], sourceRevision: input.revision, sourceIds: input.sources.map(item => item.id) },
         tasks: [{ id: 'login', title: '实现登录', description: '实现并验证登录', assignee: draft.result.employees[1].id, checkIds: ['login-check'] }],
         checks: [{ id: 'login-check', title: '登录测试', command: 'node --test', expectation: '登录通过' }] }) }), stop() {} };
     };
@@ -302,7 +304,7 @@ test('God 不传播旧员工目标，新目标预览不包含历史迭代', asyn
   f.store.update(id, { summary: '上一轮摘要标记' });
   const preview = await f.request(`/projects/${id}/prompt-preview`, { role: 'planner', goal: '新增数独小游戏' });
   const prompt = preview.value.entries[0].input;
-  assert.ok(prompt.startsWith('当前目标（本轮唯一产品目标）："新增数独小游戏"'));
+  assert.match(prompt, /当前需求：/); assert.match(prompt, /新增数独小游戏/);
   assert.doesNotMatch(prompt, /完成 Unity 登录流程/);
   assert.doesNotMatch(prompt, /previousIterations|上一轮摘要标记/);
   assert.doesNotMatch(prompt, /Hello GoalHub/);

@@ -62,6 +62,11 @@ function fixture(t, behavior = {}) {
           if (reply === undefined && role === 'coordinator') reply = { needsInput: false, assignee: 'developer', summary: '根据职位安排开发员工修复' };
           if (reply === undefined && role === 'developer') { writeFileSync(join(options.cwd, 'answer.txt'), '42'); reply = { status: 'done', summary: '已生成结果文件并完成开发' }; }
           if (reply === undefined) reply = { action: role === 'final' ? 'complete' : 'continue', summary: '目标与测试证据一致' };
+          if (role === 'planner' && reply && typeof reply === 'object' && !reply.needsInput) {
+            const sources = JSON.parse(options.input.split('当前需求：\n')[1].split('\n')[0]);
+            const background = JSON.parse(options.input.split('项目资料：\n')[1].split('\n')[0]).background?.content;
+            reply = { ...reply, requirements: { summary: sources.sources.find(item => item.id === 'goal').content, included: [...sources.sources.map(item => item.content), ...(background ? [background] : [])], deferred: [], excluded: [], sourceRevision: sources.revision, sourceIds: sources.sources.map(item => item.id) } };
+          }
           finished = true;
           resolveDone({ code: 0, error: '', finalMessage: typeof reply === 'string' ? reply : JSON.stringify(reply) });
         } catch (error) { finished = true; resolveDone({ code: 1, error: error.message, finalMessage: '' }); }
@@ -134,7 +139,7 @@ test('已完成项目从交付入口交给员工修复，保留目标并自动�
   assert.ok(!existsSync(f.git.paths(id).work));
 });
 
-test('同项目两次迭代保留首轮证据，重启后协调者及开发会话续接且读取已合并代码', async t => {
+test('同项目两次迭代保留首轮证据，新目标隔离会话且读取已合并代码', async t => {
   const f = fixture(t, {
     // planner 验证第二个目标确实看到首轮代码，并模拟可去重的宿主统计。
     planner({ options, count }) {
@@ -142,7 +147,7 @@ test('同项目两次迭代保留首轮证据，重启后协调者及开发会�
       options.onTelemetry({ key: 'turn', source: 'codex', usage: { input: 100, output: 20, cached: 30 } });
       options.onTelemetry({ source: 'codex', context: { window: 1000, used: 250 } });
       if (count === 2) {
-        assert.equal(options.sessionId, 'planner-session');
+        assert.equal(options.sessionId, '');
         assert.equal(readFileSync(join(options.cwd, 'answer.txt'), 'utf8'), '42');
         assert.doesNotMatch(options.input, /previousIterations/);
       }
@@ -169,7 +174,7 @@ test('同项目两次迭代保留首轮证据，重启后协调者及开发会�
   assert.equal(f.store.usage().total, 240);
   assert.equal(f.store.sessions(id)[0].remainingPercent, 75);
   assert.equal(f.store.goals(id)[1].base_commit, firstGoal.merge_commit);
-  assert.equal(f.calls.filter(call => call.role === 'developer')[1].sessionId, 'developer-session');
+  assert.equal(f.calls.filter(call => call.role === 'developer')[1].sessionId, '');
   assert.ok(!existsSync(f.git.paths(id).work));
   f.store.resetSessions(id);
   assert.equal(f.store.latestSession(id, 'planner'), '');
@@ -194,6 +199,23 @@ test('失败命令由员工结构化修订后不再执行旧版本', async t => 
   assert.deepEqual(executed, ['verify-answer', 'verify-answer-v2', 'verify-answer-v2']);
   assert.equal(f.store.checks(f.project.id)[0].command, 'verify-answer-v2');
   assert.equal(f.store.events(f.project.id, { kind: 'check.command.updated' }).length, 1);
+});
+
+// 修复意见的完成声明必须经关联任务实际验收，通过前不能归档。
+test('修复意见只在员工明确处理且任务验收通过后归档', async t => {
+  let f;
+  f = fixture(t, { developer({ options, count }) {
+    const repair = f.store.instructions(f.project.id).find(item => item.kind === 'repair');
+    assert.equal(repair.resolved_at, '');
+    writeFileSync(join(options.cwd, 'answer.txt'), count === 1 ? 'wrong' : '42');
+    return { status: 'done', summary: '修复计算结果', resolvedRepairIds: [repair.id] };
+  } });
+  f.store.instruction(f.project.id, '修复计算结果，保持原目标', 'repair');
+  f.orchestrator.start(f.project.id);
+  await waitUntil(() => !f.orchestrator.controls.has(f.project.id), '修复归档未完成');
+  assert.equal(f.store.project(f.project.id).status, 'completed', f.store.project(f.project.id).summary);
+  assert.equal(f.counts.developer, 2);
+  assert.ok(f.store.instructions(f.project.id)[0].resolved_at);
 });
 
 // 未完成目标不能被新迭代覆盖，主分支在验收之前保持原有代码。

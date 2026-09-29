@@ -39,7 +39,8 @@ function fixture(t, pipeline = false) {
     // host 模拟员工输出并统计重入，开发调用由测试释放。
     async host(options) {
       const role = options.input.includes('你是规划 Agent') ? 'planner' : options.input.includes('你是执行 Agent') ? 'developer' : options.input.includes('你是任务分配负责人') ? 'coordinator' : 'review';
-      const goal = JSON.parse(options.input.split('\n')[0].split('：').slice(1).join('：'));
+      const requirements = JSON.parse(options.input.split('当前需求：\n')[1].split('\n')[0]);
+      const goal = requirements.effective?.summary || requirements.sources.find(item => item.id === 'goal').content;
       const employee = options.input.match(/编号 ([^)）]+)/)[1];
       assert.ok(!active.has(employee), `员工重入：${employee}`); active.add(employee); max = Math.max(max, active.size); calls.push({ goal, role, employee, cwd: options.cwd });
       let finish;
@@ -55,6 +56,7 @@ function fixture(t, pipeline = false) {
         } else if (role === 'coordinator') value = { needsInput: false, assignee: 'developer', summary: '修复' };
         else value = { action: 'complete', summary: `验收 ${goal}` };
         if (pipeline && role === 'planner' && goal === 'A') value.tasks.push({ id: 'qa', title: '验证 A', description: '测试 A', assignee: 'planner', requiredCapability: 'testing', dependsOn: ['one'], checkIds: ['file'] });
+        if (role === 'planner') value.requirements = { summary: goal, included: [goal], deferred: [], excluded: [], sourceRevision: requirements.revision, sourceIds: requirements.sources.map(item => item.id) };
         finish({ code: 0, finalMessage: JSON.stringify(value) });
       };
       if (role === 'developer') held.set(goal, reply); else setTimeout(reply, 1);
@@ -145,7 +147,7 @@ test('运行中可通过 API 新增目标，选择目标后预览和暂停不会
   assert.equal(c.status, 'queued'); assert.equal(c.queue.waiting.length, 1);
   const detail = await request(`/goals/${b.active_goal_id}`); assert.equal(detail.historical, false); assert.equal(detail.goal, 'B'); assert.equal(detail.active, true);
   const preview = await request('/prompt-preview', { role: 'planner', goalId: b.active_goal_id });
-  assert.ok(preview.entries[0].input.startsWith('当前目标（本轮唯一产品目标）："B"'));
+  assert.match(preview.entries[0].input, /当前需求：/); assert.match(preview.entries[0].input, /"content":"B"/);
   await request('/pause', { goalId: c.active_goal_id });
   await request('/pause', { goalId: a.active_goal_id });
   assert.equal(f.store.forGoal(f.id, a.active_goal_id).project(f.id).status, 'paused');

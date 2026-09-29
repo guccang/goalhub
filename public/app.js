@@ -228,8 +228,8 @@ function renderBlocker() {
   $('#blocker-timeout').textContent = feedback.timeout ? '可在“检查团队配置”中调整该员工的超时，下一轮生效。' : '';
   // 定期刷新仅更新证据，保留用户正在输入的修复要求；切换目标时清空。
   const owner = `${project.id}:${project.active_goal_id}`;
-  if (panel.dataset.owner !== owner) { $('#blocker-instruction').value = ''; panel.dataset.owner = owner; }
-  panel.querySelectorAll('button, textarea').forEach(control => { control.disabled = busy || !!project.historical || project.active; });
+  if (panel.dataset.owner !== owner) { $('#blocker-instruction').value = ''; $('#blocker-intent').value = 'repair'; panel.dataset.owner = owner; }
+  panel.querySelectorAll('button, textarea, select').forEach(control => { control.disabled = busy || !!project.historical || project.active; });
 }
 
 // renderProject 更新任务与证据区域，保留用户打开的测试详情。
@@ -447,7 +447,7 @@ $('#blocker-form').addEventListener('submit', async (event) => {
   if (!content) { $('#blocker-instruction').focus(); return; }
   const id = selected;
   busy = true; renderBlocker();
-  try { await api(`/projects/${id}/steer`, { content }); toast('修复要求已记录，正在重新尝试'); }
+  try { await api(`/projects/${id}/steer`, { content, intent: $('#blocker-intent').value }); toast('处理意见已记录，正在重新尝试'); }
   catch (error) { toast(error.message); }
   finally { busy = false; await refresh(); }
 });

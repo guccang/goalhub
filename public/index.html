@@ -113,7 +113,7 @@
         <h2>当前任务需要你处理</h2><p id="blocker-reason" class="feedback-blocker-reason"></p>
         <div id="blocker-context"></div>
         <p id="blocker-request" class="feedback-request"></p>
-        <form id="blocker-form"><label for="blocker-instruction">你的处理意见<textarea id="blocker-instruction" required maxlength="10000" rows="3" placeholder="说明你的决定或补充信息。"></textarea></label><button type="submit" class="primary">提交意见，更新计划并继续</button></form>
+        <form id="blocker-form"><label for="blocker-intent">处理方式<select id="blocker-intent"><option value="repair">修复执行问题，保留当前需求</option><option value="requirement">修改需求，重新规划</option></select></label><label for="blocker-instruction">你的处理意见<textarea id="blocker-instruction" required maxlength="10000" rows="3" placeholder="说明你的决定或补充信息。"></textarea></label><button type="submit" class="primary">提交处理意见并继续</button></form>
         <p>执行已停止，已有成果保留。提交意见会重新规划；直接重试会沿用原计划。</p>
         <p id="blocker-timeout" hidden></p>
         <details class="feedback-diagnostics"><summary>查看完整原因与验收日志</summary><pre id="blocker-raw"></pre><div id="blocker-evidence"></div></details>
