@@ -127,7 +127,7 @@ export class EmployeeManager {
     this.dialog.querySelector('#cancel-team-generation').hidden = !running;
     this.dialog.querySelector('#load-team-proposal').hidden = this.generation?.status !== 'ready' || this.generation.stale || this.appliedId === this.generation.id;
     this.dialog.querySelector('#undo-team-proposal').hidden = !this.beforeGeneration || running;
-    this.dialog.querySelector('#team-generation-status').textContent = running ? 'God 正在分析目标并搭建团队，可关闭页面，稍后回来查看。' : this.generation?.stale ? '目标或团队已更新，可以根据当前配置重新生成。' : this.generation?.status === 'ready' ? `${this.appliedId === this.generation.id ? '方案已载入草稿，可调整并保存。' : '已有生成方案，可载入后调整。'}\n${this.generation.result.summary}` : this.generation?.error || '';
+    this.dialog.querySelector('#team-generation-status').textContent = running ? 'God 正在分析目标并搭建团队，可关闭页面，稍后回来查看。' : this.generation?.stale ? '目标或团队已更新，可以根据当前配置重新生成。' : this.generation?.status === 'ready' ? `${this.appliedId === this.generation.id ? '方案已载入草稿，可调整并保存。保存后，尚未启动的初始目标会自动交给主管拆分。' : '已有生成方案，可载入后调整。'}\n${this.generation.result.summary}` : this.generation?.error || '';
   }
   // generateTeam 提交目标和背景，结果只载入草稿，由用户保存后生效。
   async generateTeam() {
@@ -212,7 +212,11 @@ export class EmployeeManager {
   async save() {
     if (this.saving || this.startingGeneration || this.generation?.status === 'running') return; this.saving = true; this.renderGeneration();
     const button = this.dialog.querySelector('[type=submit]'); button.disabled = true;
-    try { await this.api(`/projects/${this.projectId}/employees`, { employees: this.employees, context: this.dialog.querySelector('#project-context').value, language: this.dialog.querySelector('#project-language').value }); this.dialog.close(); await this.refresh(); this.toast('项目团队已保存'); }
+    try {
+      const result = await this.api(`/projects/${this.projectId}/employees`, { employees: this.employees, teamDraftId: this.appliedId || undefined, context: this.dialog.querySelector('#project-context').value, language: this.dialog.querySelector('#project-language').value });
+      this.dialog.close(); await this.refresh();
+      this.toast(result.startError ? `团队已保存，目标未启动：${result.startError}。请处理后点击继续执行。` : result.startedGoalId ? '团队已保存，初始目标已交给主管拆分' : '项目团队已保存');
+    }
     catch (error) { this.dialog.querySelector('#employee-error').textContent = error.message; }
     finally { this.saving = false; button.disabled = false; this.renderGeneration(); }
   }

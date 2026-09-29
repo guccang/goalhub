@@ -6,10 +6,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../lib/store.mjs';
 import { Orchestrator } from '../lib/orchestrator.mjs';
+import { GoalScheduler } from '../lib/goal-scheduler.mjs';
 import { createApp } from '../lib/app.mjs';
 import { TeamBuilder } from '../lib/team-builder.mjs';
 import { phasePrompt } from '../lib/prompts.mjs';
 import { team } from '../lib/employees.mjs';
+import { EmployeeManager } from '../public/employees.js';
 
 // proposal 构造具有项目专属分工的模型输出。
 function proposal() { return { summary: '以客户端交付与验证为核心组建团队', employees: [
@@ -18,7 +20,7 @@ function proposal() { return { summary: '以客户端交付与验证为核心组
 ] }; }
 
 // fixture 创建独立数据库与可停止宿主，提供 HTTP 请求和显式完成控制。
-async function fixture(t) {
+async function fixture(t, scheduled = false) {
   const directory = mkdtempSync(join(tmpdir(), 'goalhub-team-'));
   const store = new Store(join(directory, 'state.sqlite')), calls = [];
   let resolveDone;
@@ -26,10 +28,12 @@ async function fixture(t) {
     // host 捕获真实调用参数，仅在测试明确要求时结束。
     async host(options) { calls.push(options); return { done: new Promise(resolve => { resolveDone = resolve; }), stop() { resolveDone({ code: 1, error: 'stopped' }); } }; },
   };
-  const git = { paths() { return {}; } }, orchestrator = new Orchestrator({ store, git, runtime });
+  // 隔离测试仅验证主管规划，不生成源码；两种调度器共用同一临时目录。
+  const git = { paths() { return { repo: directory, work: directory }; }, async ensure() { return this.paths(); }, forGoal() { return this; } };
+  const orchestrator = scheduled ? new GoalScheduler({ store, git, runtime }) : new Orchestrator({ store, git, runtime });
   const server = createApp({ store, git, runtime, orchestrator });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const project = store.create({ name: '游戏客户端', goal: '完成 Unity 登录流程', settings: { hostType: 'codex', model: 'saved-model', reasoningEffort: 'high', context: '使用现有 Unity 工程' } });
+  const project = store.create({ name: '游戏客户端', goal: '完成 Unity 登录流程', settings: { confirmationMode: 'manual', hostType: 'codex', model: 'saved-model', reasoningEffort: 'high', context: '使用现有 Unity 工程' } });
   t.after(async () => { await orchestrator.close(); await server.hostSetup.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); store.close(); rmSync(directory, { recursive: true, force: true }); });
   return { store, server, project, calls, orchestrator,
     // request 通过真实服务调用项目 API。
@@ -65,6 +69,64 @@ test('独立 God 使用自身配置生成草稿，保存前不改变项目团队
   assert.equal((await f.request(path + '/team-generation')).value.stale, true);
   const other = f.store.create({ name: '其他项目' });
   assert.equal((await f.request(`/projects/${other.id}/team-generation`)).value, null);
+});
+
+// 保存载入方案后使用真实调度器调用新主管，关闭后恢复草稿仍能完成交接。
+test('保存 God 方案自动把初始目标交给主管规划，重复保存不重启', async t => {
+  for (const scheduled of [false, true]) await t.test(scheduled ? '目标队列' : '串行调度', async t => {
+    const f = await fixture(t, scheduled), id = f.project.id, path = `/projects/${id}`;
+    await f.request(path + '/team-generation', {}); await f.finish();
+    const draft = (await f.request(path + '/team-generation')).value;
+    assert.equal(draft.result.goalId, f.project.active_goal_id);
+    assert.equal(f.calls.length, 1);
+    // 主管返回可验证计划，在人工确认处停止，断言不会提前调用开发员工。
+    f.orchestrator.runtime.host = async options => {
+      f.calls.push(options);
+      return { done: Promise.resolve({ code: 0, finalMessage: JSON.stringify({ needsInput: false, summary: '拆分登录流程',
+        tasks: [{ id: 'login', title: '实现登录', description: '实现并验证登录', assignee: draft.result.employees[1].id, checkIds: ['login-check'] }],
+        checks: [{ id: 'login-check', title: '登录测试', command: 'node --test', expectation: '登录通过' }] }) }), stop() {} };
+    };
+    const saved = await f.request(path + '/employees', { employees: draft.result.employees, teamDraftId: draft.id });
+    assert.equal(saved.status, 200); assert.equal(saved.value.startedGoalId, f.project.active_goal_id);
+    for (let i = 0; f.orchestrator.controls.has(id) && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal(f.store.project(id).status, 'awaiting_approval');
+    assert.equal(f.calls.length, 2); assert.equal(f.store.run(f.store.latestRoleRun(id, ['planner']).id).employee_id, draft.result.employees[0].id);
+    assert.match(f.calls[1].input, /完成 Unity 登录流程/);
+    assert.equal(f.store.tasks(id).length, 1);
+    assert.equal((await f.request(path + '/employees', { employees: draft.result.employees, teamDraftId: draft.id })).status, 400);
+    assert.equal((await f.request(path + '/employees', { employees: draft.result.employees })).status, 200);
+    assert.equal(f.calls.length, 2);
+  });
+});
+
+// 防止组队参考文本或旧规划被误当成新目标授权，启动失败仍如实报告保存结果。
+test('God 交接排除旧规划和不同目标，并报告启动失败', async t => {
+  for (const mode of ['planned', 'different', 'start-error', 'invalid-team']) await t.test(mode, async t => {
+    const f = await fixture(t), id = f.project.id, path = `/projects/${id}`;
+    if (mode === 'planned') f.store.finishRun(f.store.beginRun(id, 'planner', '已有规划'), 'interrupted', '手动暂停');
+    await f.request(path + '/team-generation', mode === 'different' ? { goal: '另一个参考目标' } : {}); await f.finish();
+    const draft = f.server.teamBuilder.latest(id);
+    if (mode === 'start-error') f.orchestrator.start = () => { throw new Error('启动条件未满足'); };
+    const employees = mode === 'invalid-team' ? [] : draft.result.employees;
+    const result = await f.request(path + '/employees', { employees, teamDraftId: draft.id });
+    assert.equal(result.status, mode === 'invalid-team' ? 400 : 200);
+    assert.equal(result.value.startedGoalId, undefined);
+    if (mode === 'start-error') assert.equal(result.value.startError, '启动条件未满足');
+    assert.equal(f.store.project(id).status, 'paused'); assert.equal(f.calls.length, 1);
+  });
+});
+
+// 前端必须传递实际载入的方案编号，普通保存不携带交接授权。
+test('员工保存传递 God 方案编号并显示交接结果', async () => {
+  for (const appliedId of [null, 'draft-id']) {
+    const calls = [], messages = [], fields = { '[type=submit]': {}, '#project-context': { value: '项目背景' }, '#project-language': { value: 'zh-CN' } };
+    const manager = { projectId: 'project-id', appliedId, employees: [], dialog: { querySelector: key => fields[key], close() {} }, renderGeneration() {}, async refresh() {}, toast: message => messages.push(message),
+      async api(path, value) { calls.push({ path, value }); return { startedGoalId: appliedId ? 'goal-id' : undefined }; } };
+    await EmployeeManager.prototype.save.call(manager);
+    assert.equal(calls[0].value.teamDraftId, appliedId || undefined);
+    assert.equal(messages[0], appliedId ? '团队已保存，初始目标已交给主管拆分' : '项目团队已保存');
+    assert.equal(manager.saving, false);
+  }
 });
 
 test('生成期间禁止重复组队和并发修改，取消后保留原团队', async t => {
