@@ -31,7 +31,7 @@ const { GodPanel } = await import('./god.js');
 const { EmployeeManager } = await import('./employees.js');
 // $ 获取工作台内的一个 DOM 元素。
 const $ = (selector) => document.querySelector(selector);
-const labels = { queued: '排队中', ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '执行受阻，待处理', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
+const labels = { cancelled: '已取消', self_testing: '模块自测中', queued_merge: '等待集成', integrating: '集成验证中', retired: '已失效', queued: '排队中', ready: '等待需求', awaiting_approval: '等待确认', paused: '已暂停', planning: '规划中', running: '执行中', verifying: '验收中', waiting_input: '等待输入', blocked: '执行受阻，待处理', completed: '已完成', pending: '待执行', done: '已完成', passed: '已通过', failed: '未通过', interrupted: '已中断' };
 const roles = { 'team-builder': 'God 搭建团队', planner: '负责人规划', coordinator: '任务分配', developer: '员工执行', evaluator: '定时评估', 'final-review': '最终评估', test: '测试验收' };
 const hostLabels = { codex: 'Codex', claudecode: 'Claude Code', 'deepseek-harness': 'DeepSeek Harness', opencode: 'OpenCode' };
 let selectedGoal = '', homeVisible = true;
@@ -44,7 +44,7 @@ const office = new OfficeView({ onAction: action, onError: toast,
   onManage: () => employees.open(selected),
   onSelect: showEmployeeRecords,
   // sendSteer 使用提交时的项目编号，避免切换项目后把指令发给另一个目标。
-  onSteer: async (id, content) => { await api(`/projects/${id}/steer`, { content }); await refresh(); toast('补充指令已记录，正在继续执行'); },
+  onSteer: async (id, content) => { await api(`/projects/${id}/steer`, { content }); await refresh(); toast('指令已处理，请查看目标状态和主管说明'); },
 });
 
 const setup = new SetupFlow({ api, selectProject, selectGoal, refresh, toast, buildTeam: async id => { await employees.open(id, { generate: true }); } });
@@ -261,8 +261,19 @@ function renderProject() {
   if ($('#blocker-panel').hidden && $('#plan-preview').hidden && $('#question-panel').hidden && $('#attention-dialog').open) closePanel('attention-dialog');
   $('#task-count').textContent = project.tasks.length ? `${project.tasks.filter((task) => task.status === 'done').length}/${project.tasks.length}` : '';
   const openedTasks = new Set([...document.querySelectorAll('#task-list details[open]')].map((item) => item.dataset.task));
-  const taskCards = project.tasks.map((task, index) => `<article class="task-item"><span class="task-marker ${task.status}">${task.status === 'done' ? '✓' : task.status === 'running' ? '›' : index + 1}</span><div class="task-content"><div class="task-heading"><h3>${escape(task.title)}</h3>${project.queue?.assignments?.find(item => item.goalId === project.active_goal_id && item.employeeId === task.assignee && item.waiting) ? `<span class="badge">等待员工空闲</span>` : badge(task.status)}</div><p>${escape(task.description)}</p><div class="task-meta"><span>执行员工：${escape(project.settings.employees?.find(employee => employee.id === task.assignee)?.name || task.assignee || '等待负责人分配')}</span><span>${escape((task.depends_on || []).map(id => project.tasks.find(item => item.id === id)).filter(item => item && item.status !== 'done').map(item => '等待：' + item.title).join('；') || '前置任务已满足')}</span><span>${task.check_ids.length} 项验收</span>${promptLink(task.assignee ? 'developer' : 'coordinator', `data-task-id="${escape(task.id)}"`)}${task.attempts ? `<span>已执行 ${task.attempts} 轮</span>` : ''}</div>${task.result ? `<details data-task="${task.id}" ${openedTasks.has(task.id) ? 'open' : ''}><summary>最近执行结果</summary><p>${escape(task.result)}</p></details>` : ''}</div></article>`);
-  $('#task-list').innerHTML = project.tasks.length ? `<div class="task-board">${[['pending','待办'],['running','进行中'],['blocked','阻塞'],['done','完成']].map(([status,title]) => `<section class="task-column"><h3>${title}</h3>${project.tasks.map((task,i) => (['pending','running','done'].includes(task.status) ? task.status : 'blocked') === status ? taskCards[i] : '').join('') || '<p class="muted">暂无任务</p>'}</section>`).join('')}</div>` : '<div class="empty-section">规划完成后，这里会展示按顺序执行的小任务。<br>每个任务都会关联可执行的测试项目。</div>';
+  const taskCards = project.tasks.map((task, index) => `<article class="task-item"><span class="task-marker ${task.status}">${task.status === 'done' ? '✓' : task.status === 'running' ? '›' : index + 1}</span><div class="task-content"><div class="task-heading"><h3>${escape(task.title)}</h3>${project.queue?.assignments?.find(item => item.goalId === project.active_goal_id && item.employeeId === task.assignee && item.waiting) ? `<span class="badge">等待员工空闲</span>` : badge(task.status)}</div><p>${escape(task.description)}</p><div class="task-meta"><span>执行员工：${escape(project.settings.employees?.find(employee => employee.id === task.assignee)?.name || task.assignee || '等待负责人分配')}</span><span>${escape((task.depends_on || []).map(id => project.tasks.find(item => item.id === id)).filter(item => item && item.status !== 'done').map(item => '等待：' + item.title).join('；') || '前置任务已满足')}</span><span>${task.check_ids.length} 项验收</span>${promptLink(task.assignee ? 'developer' : 'coordinator', `data-task-id="${escape(task.id)}"`)}${task.attempts ? `<span>已执行 ${task.attempts} 轮</span>` : ''}</div>${project.settings.executionMode === 'parallel' && !['done','cancelled'].includes(task.status) ? `<div class="task-meta"><button class="text-button" data-task-control="${task.id}" data-task-operation="${['paused','blocked'].includes(task.status) ? 'resume' : 'pause'}">${['paused','blocked'].includes(task.status) ? '恢复任务' : '暂停任务'}</button><button class="text-button" data-task-control="${task.id}" data-task-operation="cancel">取消任务</button></div>` : ''}${task.handoff ? `<details><summary>实际接口与交接</summary><p>${escape(task.handoff)}</p></details>` : ''}${task.result ? `<details data-task="${task.id}" ${openedTasks.has(task.id) ? 'open' : ''}><summary>最近执行结果</summary><p>${escape(task.result)}</p></details>` : ''}</div></article>`);
+  $('#task-list').innerHTML = project.tasks.length ? `<div class="task-board">${[['pending','待办'],['running','进行中'],['blocked','待处理'],['done','完成'],['cancelled','取消']].map(([status,title]) => `<section class="task-column"><h3>${title}</h3>${project.tasks.map((task,i) => (['self_testing','queued_merge','integrating'].includes(task.status) ? 'running' : ['pending','running','done','cancelled'].includes(task.status) ? task.status : 'blocked') === status ? taskCards[i] : '').join('') || '<p class="muted">暂无任务</p>'}</section>`).join('')}</div>` : '<div class="empty-section">规划完成后，这里会展示模块任务、依赖与集成进度。<br>每个任务都会关联可执行的测试项目。</div>';
+  const modules = project.modules || [], requests = project.controlRequests || [];
+  if (modules.length) $('#task-list').insertAdjacentHTML('afterbegin', `<div class="office-help">${modules.map(module => `${escape(module.title)}：${module.status === 'deferred' ? '后续细化' : '已拆分'} — ${escape(module.scope)}`).join('<br>')}</div>`);
+  if (requests.length) $('#task-list').insertAdjacentHTML('beforeend', `<details><summary>用户指令处理记录</summary>${requests.slice(0, 5).map(item => `<p>${escape(item.content)} · ${escape(({queued:'排队中',processing:'主管处理中',applied:'已应用',failed:'未应用',interrupted:'已中断'})[item.status] || item.status)}</p>`).join('')}</details>`);
+  const policyForm = $('#execution-policy-form');
+  if (policyForm.dataset.project !== project.id) {
+    const policy = project.executionDefaults || project.settings;
+    policyForm.elements.executionMode.value = policy.executionMode || 'serial';
+    policyForm.elements.taskGranularity.value = policy.taskGranularity || 'auto';
+    policyForm.elements.maxParallelTasks.value = policy.maxParallelTasks || 3;
+    policyForm.dataset.project = project.id;
+  }
   renderInspector(); renderRuns();
 }
 
@@ -479,6 +490,23 @@ $('#blocker-form').addEventListener('submit', async (event) => {
   try { await api(`/projects/${id}/steer`, { content, intent: $('#blocker-intent').value }); toast('处理意见已记录，正在重新尝试'); }
   catch (error) { toast(error.message); }
   finally { busy = false; await refresh(); }
+});
+
+// 任务控制在服务端等待进程停止，再恢复可继续的模块。
+document.addEventListener('click', async event => {
+  const button = event.target.closest('[data-task-control]');
+  if (!button || busy) return;
+  const id = selected, goalId = project.active_goal_id;
+  busy = true; button.disabled = true;
+  try { await api(`/projects/${id}/tasks/${button.dataset.taskControl}/control`, { goalId, action: button.dataset.taskOperation }); toast('任务控制已应用'); }
+  catch (error) { toast(error.message); }
+  finally { busy = false; await refresh(); }
+});
+// 保存项目默认策略不改变正在执行或历史目标的行为。
+$('#execution-policy-form').addEventListener('submit', async event => {
+  event.preventDefault(); const form = event.currentTarget, button = form.querySelector('button'); button.disabled = true;
+  try { await api(`/projects/${selected}/execution-policy`, Object.fromEntries(new FormData(form))); toast('项目默认策略已保存'); await refresh(); }
+  catch (error) { toast(error.message); } finally { button.disabled = false; }
 });
 
 // searchEvents 应用关键字和类型筛选，并恢复最新记录查询。

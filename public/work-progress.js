@@ -1,7 +1,7 @@
 // 本文件把实际执行记录整理成工作进展；工具完成不等于任务验收通过。
 import { escapeFeedback as escape } from './feedback.js';
 
-export const workLabels = { pending: '待执行', running: '进行中', done: '已完成', completed: '本轮结束', failed: '失败', blocked: '受阻', interrupted: '已中断', passed: '已通过' };
+export const workLabels = { self_testing: '模块自测中', queued_merge: '等待集成', integrating: '集成验证中', cancelled: '已取消', paused: '已暂停', pending: '待执行', running: '进行中', done: '已完成', completed: '本轮结束', failed: '失败', blocked: '受阻', interrupted: '已中断', passed: '已通过' };
 
 // inputContext 只提取平台生成的数据段，旧格式保留未知，不猜测模型实际收到的内容。
 export function inputContext(input = '') {
@@ -73,7 +73,7 @@ export function renderEmployeeWork(project, actor) {
   const run = project.runs?.find(run => run.id === actor.run?.id);
   const context = run ? actor.context || {} : {};
   const events = run ? actor.progress || actor.events || [] : [];
-  const current = own.find(task => task.status === 'running');
+  const current = own.find(task => ['running', 'self_testing', 'queued_merge', 'integrating'].includes(task.status));
   const activities = progressEvents(events);
   const reports = activities.filter(row => row.category === 'report');
   const latest = activities.at(-1);

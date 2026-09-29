@@ -43,6 +43,7 @@ export class SetupFlow {
       form.elements.generateTeam.checked = this.needsTeam;
       form.elements.language.value = project.settings.language || 'zh-CN';
       form.elements.confirmationMode.value = 'auto';
+      if (form.elements.executionMode) { const policy = project.executionDefaults || project.settings; form.elements.executionMode.value = policy.executionMode || 'serial'; form.elements.taskGranularity.value = policy.taskGranularity || 'auto'; form.elements.maxParallelTasks.value = policy.maxParallelTasks || 3; }
       const draft = this.drafts.get(project.id);
       if (draft) for (const [name, value] of Object.entries(draft)) {
         const field = form.elements[name];
@@ -183,7 +184,7 @@ export class SetupFlow {
       const values = Object.fromEntries(new FormData(form));
       const hostTestId = this.state.tests.find(test => test.revision === this.state.revision).id;
       const configureTeam = values.configureTeam === 'on', generateTeam = values.generateTeam === 'on' || (this.needsTeam && !configureTeam);
-      const created = await this.api(`/projects/${projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes) } });
+      const created = await this.api(`/projects/${projectId}/goals`, { title: values.name, goal: values.goal, hostTestId, autoStart: !configureTeam && !generateTeam, settings: { executionMode: values.executionMode, taskGranularity: values.taskGranularity, maxParallelTasks: Number(values.maxParallelTasks), language: values.language, confirmationMode: values.confirmationMode, evaluationMinutes: Number(values.evaluationMinutes) } });
       this.find('#goal-dialog').close();
       this.drafts?.delete(projectId); if (this.projectId === projectId) form.reset(); button.textContent = '提交需求'; await this.selectProject(created.id); if (this.selectGoal && created.viewed_goal_id) await this.selectGoal(created.viewed_goal_id); await this.refresh();
       if (generateTeam) { await this.buildTeam(created.id); }

@@ -10,12 +10,12 @@ export function previewRequest(path, value) {
   if (!match || match[2] === 'goals' && value.autoStart === false) return null;
   const [, id, action] = match;
   let payload = { action };
-  if (action === 'goals') payload = { action, role: 'planner', goal: value.goal, language: value.settings?.language };
+  if (action === 'goals') payload = { action, role: 'planner', goal: value.goal, language: value.settings?.language, executionPolicy: value.settings };
   if (action === 'team-generation') payload = { ...value, role: 'team-builder' };
   if (action === 'answer') payload.answers = value.answers;
   if (action === 'steer') { payload.instruction = value.content; if (value.intent) payload.intent = value.intent; }
   if (value.goalId) payload.goalId = value.goalId;
-  const names = { goals: '开始规划', start: '继续执行', approve: '确认计划并执行', evaluate: '立即评估', answer: '提交回答并继续', steer: '发送指令并继续', 'team-generation': '生成团队', 'delivery/build': '准备交付' };
+  const names = { goals: '开始规划', start: '继续执行', approve: '确认计划并执行', evaluate: '立即评估', answer: '提交回答并继续', steer: '发送主管指令', 'team-generation': '生成团队', 'delivery/build': '准备交付' };
   return { path: `/projects/${id}/prompt-preview`, value: payload, title: `确认${names[action]}` };
 }
 

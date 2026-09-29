@@ -170,7 +170,7 @@ export class OfficeView {
     const locked = ['completed', 'waiting_input', 'awaiting_approval'].includes(project.status);
     this.find('#office-instruction').disabled = pending || locked;
     this.find('#office-send').disabled = pending || locked;
-    this.find('#office-send').textContent = this.sending ? '正在保存并重新调度…' : project.status === 'blocked' ? '提交修复要求并重试' : '发送指令并继续';
+    this.find('#office-send').textContent = this.sending ? '正在处理指令…' : project.settings?.executionMode === 'parallel' ? '发送给主管' : project.status === 'blocked' ? '提交修复要求并重试' : '发送指令并继续';
     this.find('#office-control-hint').textContent = project.status === 'blocked' ? '自动执行已停止。请先查看失败原因并处理，再选择是否重试；已有进度已保留。' : ['waiting_input', 'awaiting_approval'].includes(project.status) ? '点击上方按钮处理当前目标；其他目标可在下方目标列表切换查看。' : project.status === 'completed' ? '目标已通过验收。可以选择角色查看交付过程，或新建目标。' : (project.queue?.assignments?.filter(item => item.goalId === project.active_goal_id).map(item => item.label).join('；') || '控制作用于当前选中的目标。减少动态只影响画面，不会暂停 Agent。');
   }
 

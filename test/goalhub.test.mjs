@@ -19,7 +19,8 @@ const plan = { needsInput: false, summary: '实现可验证的本地文件功能
 
 // waitUntil 有界等待异步状态，失败时输出实际状态以便诊断。
 async function waitUntil(predicate, message, timeout = 15000) {
-  const deadline = Date.now() + timeout;
+  // Windows 磁盘繁忙时允许显式放宽真实 Git 集成测试等待，默认时限不变。
+  const deadline = Date.now() + timeout * (Number(process.env.GOALHUB_TEST_TIMEOUT_SCALE) || 1);
   while (!predicate()) {
     if (Date.now() > deadline) throw new Error(message);
     await new Promise((resolve) => setTimeout(resolve, 20));
