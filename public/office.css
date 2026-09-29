@@ -86,3 +86,33 @@
 .office-control-action { flex:1; min-width:0; }
 .office-control-action button { width:100%; }
 .office-control-action .prompt-link { font-size:12px; }
+
+/* 员工工作台按工作问题分段，真实状态和依赖决定信息层级。 */
+.employee-workspace { color:#203650; font-size:15px; line-height:1.75; overflow-wrap:anywhere; }
+.employee-workspace>section { padding:22px 0; border-bottom:1px solid #dce3ee; }
+.employee-workspace h3 { font-size:19px; margin:0 0 12px; }
+.employee-workspace h4 { font-size:15px; margin:14px 0 5px; }
+.employee-workspace p { margin:8px 0; white-space:pre-wrap; max-width:78ch; }
+.employee-workspace .office-help { color:#5b6f87; font-size:13px; }
+.employee-workspace .work-current { border-left:4px solid #3659bf; padding:18px; background:#f3f6ff; margin-top:16px; }
+.employee-workspace summary { padding:9px 0; cursor:pointer; }
+.employee-workspace summary:focus-visible, .office-terminal>summary:focus-visible { outline:2px solid #3659bf; outline-offset:3px; }
+.work-goal { font-size:17px; }
+.work-plan { padding-left:24px; }
+.work-plan>li { padding:8px 0; }
+.work-status { color:#3659bf; font-weight:600; }
+.work-plan small { color:#61718a; }
+.work-timeline { list-style:none; padding:0 0 0 18px; border-left:2px solid #ccd7ee; }
+.work-timeline li { margin:16px 0; }
+.work-timeline li>div { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.work-timeline time { color:#61718a; font-size:12px; }
+.work-timeline p { white-space:pre-wrap; overflow-wrap:anywhere; max-height:240px; overflow:auto; }
+.employee-workspace pre, #run-raw { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; }
+.office-terminal>summary { padding:16px; cursor:pointer; }
+#run-progress { font-size:15px; line-height:1.7; }
+@media(max-width:600px) { .employee-workspace .work-current { padding:12px; } .work-plan { padding-left:18px; } }
+
+/* 团队和配置为辅助信息，避免挤占当前工作首屏。 */
+.work-team { margin-bottom:18px; }
+.work-team>summary { cursor:pointer; padding:10px 0; color:#526a87; }
+.work-last-activity { font-size:13px; color:#526a87; }

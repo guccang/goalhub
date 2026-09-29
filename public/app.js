@@ -24,6 +24,7 @@ const { renderQuestionForm, collectQuestionAnswers, blockerFeedback } = await im
 const { renderRunEmployee, runEmployeeText } = await import('./run-view.js');
 const { ProjectsPanel } = await import('./projects.js');
 const { SetupFlow } = await import('./setup.js');
+const { renderProgress } = await import('./work-progress.js');
 const { OfficeView } = await import('./office-view.js');
 const { DeliveryPanel } = await import('./delivery.js');
 const { GodPanel } = await import('./god.js');
@@ -319,6 +320,34 @@ async function loadEvents(older = false) {
   renderEvents();
 }
 
+// refreshRunDialog 刷新当前查看轮次，响应到达时核对编号，避免切换记录串台。
+async function refreshRunDialog() {
+  const dialog = $('#run-dialog'), id = dialog.dataset.runId;
+  if (!dialog.open || !id) return;
+  try {
+    const run = await api(`/runs/${id}`);
+    if (!dialog.open || dialog.dataset.runId !== id) return;
+    $('#run-title').textContent = `${run.employee?.name || '员工'} · 执行记录`;
+    $('#run-meta').textContent = `${labels[run.status] || run.status} · ${date(run.created_at)} · 自动更新`;
+    let executor = {};
+    try { executor = JSON.parse(run.executor || '{}'); } catch { /* 兼容旧版记录。 */ }
+    $('#run-config').textContent = `${runEmployeeText(run)} · ${hostLabels[executor.hostType] || executor.hostType || ''} · ${executor.model || '默认模型'} · 思考 ${executor.reasoningEffort || '默认'} · 语言 ${executor.effectiveLanguage || '未记录'} · 会话 ${run.session_id || '未记录'}`;
+    const progress = renderProgress(run.events, run.status);
+    if (dialog.progressMarkup !== progress) {
+      const opened = new Set([...$('#run-progress').querySelectorAll('details[open]')].map(item => item.dataset.progressDetail || item.dataset.workDetail));
+      $('#run-progress').innerHTML = progress; dialog.progressMarkup = progress;
+      for (const item of $('#run-progress').querySelectorAll('details')) item.open = opened.has(item.dataset.progressDetail || item.dataset.workDetail);
+    }
+    let result = run.output;
+    try { const value = JSON.parse(result); result = value.summary || result; } catch { /* 非结构化结果按文本显示。 */ }
+    $('#run-output').textContent = result || (run.status === 'running' ? '尚未结束；工作进展见上方。' : '此轮未保存最终结果。');
+    $('#run-prompt-link').dataset.runId = run.id;
+    $('#run-raw').textContent = (run.events || []).map(event => `${date(event.created_at)} ${event.kind}\n${event.content}`).join('\n\n') || '没有宿主日志';
+  } catch (error) {
+    if (dialog.open && dialog.dataset.runId === id) $('#run-meta').textContent = `记录刷新失败：${error.message}。正在重试，以下保留上次记录。`;
+  }
+}
+
 // refresh 轮询持久化状态，避免并发响应覆盖刚切换的项目。
 async function refresh() {
   if (refreshInFlight) return;
@@ -341,6 +370,7 @@ async function refresh() {
       project = detail; renderProject();
       if (tab === 'activity' && (!historyMode || eventProject !== selected)) await loadEvents();
     } else { project = null; renderProject(); }
+    await refreshRunDialog();
     hasLoadedProjects = true; $('#startup-state').hidden = true;
   } catch (error) {
     if (!hasLoadedProjects) { $('#empty').hidden = true; $('#startup-state').hidden = false; $('#startup-message').textContent = '项目读取失败，正在重试。请检查本地服务是否已启动。'; $('#startup-retry').hidden = false; }
@@ -417,14 +447,13 @@ document.addEventListener('click', async (event) => {
       if (tab === 'activity') { historyMode = false; await loadEvents(); }
     }
     if (button.dataset.run) {
-      const run = await api(`/runs/${button.dataset.run}`);
-      // 历史轮次展示当时的执行配置，避免员工改名或换模型后混淆记录。
-      let executor = null;
-      try { executor = run.executor ? JSON.parse(run.executor) : null; } catch { /* 旧配置损坏时仍允许查看该轮输入输出。 */ }
-      $('#run-title').textContent = `${run.employee?.name || '员工信息未记录'} · ${roles[run.role] || run.role}`;
-      $('#run-meta').textContent = `${runEmployeeText(run)} · ${labels[run.status] || run.status} · ${date(run.created_at)}${executor ? ` · ${hostLabels[executor.hostType] || executor.hostType} · 模型 ${executor.model || '默认'} · 思考 ${executor.reasoningEffort || '默认'} · 语言 ${executor.effectiveLanguage || '历史未记录'}` : ''}${run.session_id ? ` · 会话 ${run.session_id}` : ''}`;
-      $('#run-prompt-link').dataset.runId = run.id; $('#run-output').textContent = run.output || '运行中，流事件可在步骤记录中查询。';
+      $('#run-title').textContent = '正在读取执行记录';
+      $('#run-meta').textContent = ''; $('#run-progress').textContent = ''; $('#run-output').textContent = ''; $('#run-raw').textContent = ''; $('#run-config').textContent = '';
+      $('#run-prompt-link').dataset.runId = button.dataset.run;
+      $('#run-dialog').progressMarkup = null;
+      $('#run-dialog').dataset.runId = button.dataset.run;
       $('#run-dialog').showModal();
+      await refreshRunDialog();
     }
   } catch (error) { toast(error.message); }
 });
