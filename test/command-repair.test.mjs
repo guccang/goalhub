@@ -113,3 +113,14 @@ test('所有修复阶段接收结构化修订，评估不能边换命令边宣�
   }
   assert.throws(() => validateEvaluation(JSON.stringify({ action: 'complete', summary: '完成', checkUpdates: [update] })), /重新执行/);
 });
+
+// 真实跨版本启动必须可加载当前解释器的内置模块，不依赖外层 Codex 的模块路径。
+test('Windows PowerShell 在继承模块环境下仍可计算文件摘要', { skip: process.platform !== 'win32' }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'goalhub-hash-'));
+  t.after(() => rmSync(directory, {recursive:true, force:true}));
+  writeFileSync(join(directory, 'input.txt'), 'abc');
+  let output = '';
+  const handle = await new Runtime('.').command('powershell -NoProfile -Command "$ErrorActionPreference=\'Stop\'; (Get-FileHash -LiteralPath input.txt -Algorithm SHA256).Hash"', directory, (_, line) => { output += line; });
+  assert.equal((await handle.done).code, 0, output);
+  assert.match(output, /BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD/i);
+});
