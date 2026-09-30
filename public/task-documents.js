@@ -11,3 +11,10 @@ export function taskDocumentLinks(project, task = null) {
     return `<a href="/api/projects/${escape(project.id)}/task-documents?${escape(query.toString())}" target="_blank" rel="noopener">${file}</a>`;
   }).join(' · ');
 }
+
+// taskDocumentUrl 为当前目标的指定分工构造受限文档地址。
+export function taskDocumentUrl(project, task, file) {
+  const goalId = project.viewed_goal_id || project.active_goal_id;
+  const query = new URLSearchParams({ goalId, file, assignmentId: task.assignmentId || task.id });
+  return `/api/projects/${encodeURIComponent(project.id)}/task-documents?${query.toString()}`;
+}

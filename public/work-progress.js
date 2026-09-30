@@ -68,29 +68,54 @@ export function activityDescription(row) {
   return script ? `执行 ${script[1].replaceAll('\\', '/').split('/').slice(-2).join('/')}` : '调用命令工具，具体命令见工作动态';
 }
 
-// renderEmployeeWork 以目标、工作、计划、成果与输入组织信息，原始日志另行折叠。
-export function renderEmployeeWork(project, actor) {
-  const tasks = project.tasks || [], own = tasks.filter(task => task.assignee === actor.id);
-  const run = project.runs?.find(run => run.id === actor.run?.id);
-  const context = run ? actor.context || {} : {};
-  const events = run ? actor.progress || actor.events || [] : [];
-  const current = own.find(task => ['running', 'self_testing', 'queued_merge', 'integrating'].includes(task.status));
-  const activities = progressEvents(events);
-  const reports = activities.filter(row => row.category === 'report');
-  const latest = activities.at(-1);
-  const requirement = project.requirements;
-  const effective = requirement?.status === 'consolidated' ? requirement.effective : null;
-  const dependencies = tasks.filter(task => own.some(item => item.depends_on?.includes(task.id)));
-  const done = own.filter(task => task.status === 'done');
-  // 员工执行计划只取本轮最新上报，不用主管分配的项目任务推算个人步骤。
-  const plan = activities.filter(row => row.category === 'plan').at(-1);
-  const steps = plan?.steps;
-  const completedSteps = steps?.filter(step => step.completed).length || 0;
-  return `<div class="employee-workspace"><section><h3>目标是什么</h3><p class="work-goal">${escape(effective?.summary || project.goal || '尚未设置目标')}</p>${!effective ? '<p class="office-help">显示原始目标；当前有效需求尚未整理或已发生变更。</p>' : ''}</section>
-    <section class="work-current"><h3>正在做什么</h3><strong>${escape(current?.title || (run?.status === 'running' ? actor.activity : own.some(task => task.status !== 'done') ? '等待下一项任务执行' : '当前没有进行中的任务'))}</strong>${reports.length ? `<p>${escape(reports.at(-1).text)}</p><small>员工最近说明 · ${escape(new Date(reports.at(-1).at).toLocaleString())} · 尚不代表验收通过</small>` : '<p class="office-help">尚无员工进展说明。</p>'}${latest && latest.category !== 'report' ? `<p class="work-last-activity">最近活动：${escape(latest.title)} · ${escape(new Date(latest.at).toLocaleString())}<br>${escape(latest.category === 'tool' ? activityDescription(latest) : latest.text)}</p>` : ''}<details data-work-detail="progress"><summary>查看本轮工作动态</summary>${renderProgress(events, run?.status)}</details></section>
-    <section><h3>任务文档</h3><p>${taskDocumentLinks(project)}</p>${own.filter(task => task.documents).map(task => `<article><h4>${escape(task.title)}</h4><p>${taskDocumentLinks(project, task)}</p><small>taskId: ${escape(task.taskId)} · assignmentId: ${escape(task.assignmentId)}</small></article>`).join('') || '<p>尚未派发分工。</p>'}</section>
-    <section><h3>计划与剩余任务</h3>${steps?.length ? `<p>本轮执行计划已完成 ${completedSteps} / ${steps.length} 项，剩余 ${steps.length - completedSteps} 项。</p><p class="office-help">状态来自员工上报，不代表项目验收结果。</p><ol class="work-plan">${steps.map(step => `<li><span class="work-status">${step.completed ? '已完成' : '待执行'}</span> ${escape(step.text)}</li>`).join('')}</ol>` : plan?.text && !steps ? `<p>${escape(plan.text)}</p>` : '<p class="office-help">该员工本轮尚未上报执行计划。</p>'}</section>
-    <section><h3>已经做了什么</h3>${done.map(task => `<article><h4>${escape(task.title)}</h4><p>${escape(task.result || '任务已完成，但没有记录成果摘要。')}</p></article>`).join('') || '<p>暂无已通过验收的任务。过程中的修改和员工说明见上方工作动态。</p>'}</section>
-    <section><h3>上下文有哪些</h3><p>当前任务依据以下资料推进；本轮实际收到的资料以执行记录为准。</p><details data-work-detail="requirements"><summary>当前需求范围与例外</summary>${['included', 'deferred', 'excluded'].map((key, index) => `<h4>${['必须完成', '允许延期', '明确排除'][index]}</h4><ul>${(effective?.[key] || []).map(item => `<li>${escape(item)}</li>`).join('') || '<li>未记录</li>'}</ul>`).join('')}</details><details data-work-detail="dependencies"><summary>前置任务与交接成果（${dependencies.length}）</summary>${dependencies.map(task => `<h4>${escape(task.title)} · ${escape(workLabels[task.status] || task.status)}</h4><p>${escape(task.handoff || task.result || '尚无交接成果')}</p>`).join('') || '<p>计划未登记前置任务。</p>'}</details><details data-work-detail="input"><summary>本轮实际输入概览</summary><p>${escape(context.requirements?.effective?.summary || '此轮未记录可解析的需求概览，请在诊断中查看实际提示词。')}</p><p>任务：${escape(context.work?.task?.title || '未记录')}</p><p>工作仓库：${escape(context.project?.repository || '未记录')}</p><p>本轮关联任务：${escape(context.work?.tasks?.map(task => task.title).join('、') || '未记录')}</p>${(context.work?.tasks || []).filter(task => task.status === 'done').map(task => `<p>前置交接「${escape(task.title)}」：${escape(task.handoff || task.result || '该旧轮次未随输入传递完成结果')}</p>`).join('')}<p>本轮修复要求：${escape(context.work?.repair?.content || '')} ${escape(context.work?.repairInstructions?.map(item => item.content).join('；') || '无')}</p></details></section>
-    <section><h3>执行记录</h3>${(project.runs || []).filter(item => item.employee_id === actor.id).map(item => `<button class="run-row" data-run="${escape(item.id)}">${escape(new Date(item.created_at).toLocaleString())} · ${escape(workLabels[item.status] || item.status)} · 查看进展与结果</button>`).join('') || '<p>尚未开始执行。</p>'}</section></div>`;
+// currentEmployeeTask 优先定位本轮真实分工；负责人可查看当前正在推进的分工。
+export function currentEmployeeTask(project, actor) {
+  const tasks = project.tasks || [];
+  const run = (project.runs || []).find(item => item.id === actor.run?.id);
+  const running = task => ['running', 'self_testing', 'queued_merge', 'integrating'].includes(task.status);
+  return tasks.find(task => run?.status === 'running' && run.task_id === task.id && task.assignee === actor.id && running(task))
+    || tasks.find(task => task.assignee === actor.id && running(task))
+    || (actor.isLead ? tasks.find(running) : null)
+    || tasks.find(task => task.assignee === actor.id && ['paused', 'blocked'].includes(task.status))
+    || null;
+}
+
+// renderPlanMarkdown 安全展示计划中的标题、清单与代码块，其他内容保留为普通文本。
+export function renderPlanMarkdown(source) {
+  const rows = String(source || '').split(/\r?\n/), html = [];
+  let list = false, fence = false, code = [];
+  const closeList = () => { if (list) { html.push('</ul>'); list = false; } };
+  for (const row of rows) {
+    if (/^\s*```/.test(row)) {
+      closeList();
+      if (fence) { html.push(`<pre>${escape(code.join('\n'))}</pre>`); code = []; }
+      fence = !fence; continue;
+    }
+    if (fence) { code.push(row); continue; }
+    const heading = row.match(/^(#{1,6})\s+(.+)$/);
+    const item = row.match(/^\s*-\s+(?:\[([ xX])\]\s*)?(.+)$/);
+    if (heading) { closeList(); html.push(`<h4>${escape(heading[2])}</h4>`); }
+    else if (item) {
+      if (!list) { html.push('<ul class="work-plan-list">'); list = true; }
+      html.push(`<li>${item[1] == null ? '' : `<span class="work-status">${item[1].toLowerCase() === 'x' ? '已完成' : '待执行'}</span> `}${escape(item[2])}</li>`);
+    } else if (row.trim()) { closeList(); html.push(`<p>${escape(row)}</p>`); }
+    else closeList();
+  }
+  closeList();
+  if (fence) html.push(`<pre>${escape(code.join('\n'))}</pre>`);
+  return html.join('') || '<p class="office-help">plan.md 暂无内容。</p>';
+}
+
+// renderEmployeeWork 以当前分工的 plan.md 原文为主体，并提供同一目标的上下文文档。
+export function renderEmployeeWork(project, actor, plan = {}) {
+  const task = currentEmployeeTask(project, actor);
+  if (!task) return `<div class="employee-workspace"><section><h3>当前执行目标</h3><p class="office-help">当前没有正在执行的分工。分工开始后，这里显示对应的 plan.md。</p></section></div>`;
+  const title = escape(task.title || '未命名分工');
+  const body = !task.documents ? '<p class="office-help">当前分工尚未生成 plan.md。</p>'
+    : plan.taskId === task.id && plan.text != null ? `<div class="work-plan-document">${renderPlanMarkdown(plan.text)}</div>`
+    : plan.taskId === task.id && plan.error ? `<p class="office-help">plan.md 读取失败：${escape(plan.error)}</p>`
+    : '<p class="office-help">正在读取当前分工的 plan.md…</p>';
+  return `<div class="employee-workspace"><section><h3>当前执行目标</h3><p class="work-goal">${title}</p><p>${escape(task.description || '')}</p></section>
+    <section><h3>执行计划 · plan.md</h3>${body}</section>
+    <section><h3>上下文引用文档</h3><p>当前分工：${taskDocumentLinks(project, task)}</p><p>当前目标：${taskDocumentLinks(project)}</p></section></div>`;
 }

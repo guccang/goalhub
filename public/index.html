@@ -26,7 +26,7 @@
     <div class="sidebar-bottom"><span class="connection-dot" id="connection-dot"></span><span id="connection">连接中</span><small>源码与执行记录保存在本机</small></div>
   </dialog>
   <main id="workspace">
-    <nav class="workspace-toolbar" aria-label="工作台操作"><button id="sidebar-toggle" class="text-button" data-panel="sidebar" aria-controls="sidebar" aria-expanded="false">☰ 项目与设置</button><button class="text-button" data-action="home">办公室总览</button><details id="project-tools" class="project-menu" hidden><summary>项目选项</summary><div><label class="home-office-option"><input type="checkbox" id="show-office-on-home" checked>在主页显示办公室</label><button data-action="employee-details">员工与记录</button><button data-panel="goal-dialog">新需求</button><button data-panel="usage-dialog">上下文与用量</button><button data-action="manage-team">管理团队</button><button data-action="office-location">办公地点</button></div></details></nav>
+    <nav class="workspace-toolbar" aria-label="工作台操作"><button id="sidebar-toggle" class="text-button" data-panel="sidebar" aria-controls="sidebar" aria-expanded="false">☰ 项目与设置</button><button class="text-button" data-action="home">办公室总览</button><details id="project-tools" class="project-menu" hidden><summary>项目选项</summary><div><label class="home-office-option"><input type="checkbox" id="show-office-on-home" checked>在主页显示办公室</label><button data-action="employee-details">员工详情</button><button data-panel="goal-dialog">新需求</button><button data-panel="usage-dialog">上下文与用量</button><button data-action="manage-team">管理团队</button><button data-action="office-location">办公地点</button></div></details></nav>
     <section id="startup-state" class="startup-state" role="status"><p id="startup-message">正在读取项目…</p><button id="startup-retry" class="secondary" hidden>重新加载</button></section>
     <div id="empty" class="empty-workspace" hidden>
       <div class="empty-visual" aria-hidden="true"><span class="goal-ring">◎</span><div class="trail"><i></i><i></i><i></i></div><span class="finish-mark">✓</span></div>
@@ -44,7 +44,7 @@
         <div class="office-main">
           <div class="office-scene-card">
             <div class="office-scene-heading"><div><h2 id="office-project-name"></h2><span id="office-progress">等待同步</span></div><span id="office-connection" class="office-connection" aria-live="polite">正在连接</span></div>
-            <div class="office-canvas-wrap"><div id="office-canvas" role="img" aria-label="Munder Difflin 完整办公室。点击员工查看任务、验收与输出，点击负责人查看项目全部记录。"></div><p id="office-canvas-error" hidden></p></div>
+            <div class="office-canvas-wrap"><div id="office-canvas" role="img" aria-label="Munder Difflin 完整办公室。点击员工查看当前任务计划与上下文文档。"></div><p id="office-canvas-error" hidden></p></div>
             <div class="office-scene-footer"><div class="office-legend"><span><i class="working"></i>工作中</span><span><i class="success"></i>本轮结束</span><span><i class="blocked"></i>需要处理</span></div><div class="office-camera"><button data-office-camera="out" aria-label="缩小办公室">−</button><button data-office-camera="fit" aria-label="显示完整办公室">全景</button><button type="button" data-office-camera="expand" aria-label="展开办公室">展开</button><button data-office-camera="in" aria-label="放大办公室">＋</button><button data-office-camera="motion" id="office-motion" aria-pressed="false">减少动态</button></div></div>
           </div>
 <div class="office-attribution">完整办公室场景来自 <a href="https://github.com/chaitanyagiri/munder-difflin" target="_blank" rel="noreferrer">Munder Difflin</a><a href="/office-license.txt" target="_blank" rel="noreferrer">代码 MIT 许可</a><a href="https://limezu.itch.io/" target="_blank" rel="noreferrer">像素素材：LimeZu</a><a href="/office-engine/ASSET-LICENSE.txt" target="_blank">素材许可</a><span>工作状态来自真实记录；散步、喝咖啡为场景动画。</span></div>
@@ -61,7 +61,9 @@
         </aside><div class="employee-panel-content">          <div class="office-secondary"><details class="work-team"><summary>切换员工与团队管理</summary><div class="office-team-heading"><h3>项目员工</h3><button class="secondary" id="manage-employees">管理员工</button></div>
           <div id="office-roster" class="office-roster" role="group" aria-label="选择办公室角色"></div></details>
           <button class="secondary" data-panel="delivery-summary-dialog">预览与交付</button><div id="employee-work"></div><details class="office-terminal"><summary>诊断：原始宿主日志</summary><div class="office-terminal-heading"><h2 id="office-output-title">角色输出</h2><button id="office-full-run" class="text-button" disabled>查看执行记录</button></div><pre id="office-output" tabindex="0" aria-label="所选角色的运行输出">选择一个角色查看运行记录。</pre></details>
-          </div>      <section id="leader-records" hidden aria-labelledby="leader-records-title"><h2 id="leader-records-title">负责人 · 项目记录</h2><p class="subtle">在这里查看各次迭代的任务、验收、输入输出和步骤记录。</p>
+          </div></div></div></dialog>
+      </section>
+      <section id="leader-records" aria-labelledby="leader-records-title"><h2 id="leader-records-title">项目全部记录</h2><p class="subtle">在这里查看各次迭代的任务、验收、输入输出和步骤记录。</p>
       <section class="iteration-panel"><div class="iteration-toolbar"><label for="iteration-select">目标与迭代<select id="iteration-select"></select></label></div><details><summary>仓库信息</summary><small id="project-repository"></small></details></section>
       <div class="project-body" id="dashboard-view">
         <div class="main-column">
@@ -84,7 +86,6 @@
         </aside>
       </div>
       </section>
-</div></div></dialog>      </section>
     </section>
   </main>
 <dialog id="goal-dialog" class="detail-drawer narrow-drawer" aria-labelledby="composer-title"><div class="drawer-heading"><span>需求</span><button class="icon-button" data-close-panel="goal-dialog" aria-label="关闭需求">×</button></div>  <section id="create-dialog" class="goal-composer" aria-labelledby="composer-title">

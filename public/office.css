@@ -87,7 +87,7 @@
 .office-control-action button { width:100%; }
 .office-control-action .prompt-link { font-size:12px; }
 
-/* 员工工作台按工作问题分段，真实状态和依赖决定信息层级。 */
+/* 员工工作台统一显示当前分工计划和上下文文档。 */
 .employee-workspace { color:#203650; font-size:15px; line-height:1.75; overflow-wrap:anywhere; }
 .employee-workspace>section { padding:22px 0; border-bottom:1px solid #dce3ee; }
 .employee-workspace h3 { font-size:19px; margin:0 0 12px; }
@@ -108,6 +108,11 @@
 .work-timeline time { color:#61718a; font-size:12px; }
 .work-timeline p { white-space:pre-wrap; overflow-wrap:anywhere; max-height:240px; overflow:auto; }
 .employee-workspace pre, #run-raw { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; }
+.employee-workspace .work-plan-document { padding:16px; background:#f3f6ff; border:1px solid #dce3ee; border-radius:6px; }
+.employee-workspace .work-plan-document h4 { margin:0 0 10px; font-size:17px; }
+.employee-workspace .work-plan-document ul { padding-left:22px; margin:8px 0; }
+.employee-workspace .work-plan-document li { margin:6px 0; }
+.employee-workspace .work-plan-document pre { max-height:none; }
 .office-terminal>summary { padding:16px; cursor:pointer; }
 #run-progress { font-size:15px; line-height:1.7; }
 @media(max-width:600px) { .employee-workspace .work-current { padding:12px; } .work-plan { padding-left:18px; } }

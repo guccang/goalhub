@@ -52,7 +52,7 @@
 .project-progress-summary { margin:0; padding:10px 32px; background:#fff; color:var(--muted); font-size:13px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 @media(max-width:700px) { .project-progress-summary { padding:8px 13px; } }
 
-/* 项目档案只由负责人打开，员工任务与验收在个人输出旁查看。 */
+/* 项目记录直接显示在项目层级，所有员工详情只包含当前分工。 */
 #leader-records { margin:20px 32px; padding:20px; background:white; border:1px solid var(--line); border-radius:6px; }
 #leader-records>h2 { font-size:20px; margin:0 0 10px; }
 #leader-records .project-body { padding:20px 0; }
@@ -90,10 +90,6 @@ body:has(dialog[open]) { overflow:hidden; }
 .employee-panel-content { min-width:0; }
 #employee-panel .office-secondary { margin:0; }
 #employee-panel .office-controls { display:block; margin:0; }
-#employee-panel #leader-records { margin:20px 0 0; padding:0; border:0; }
-#employee-panel .project-body { display:block; }
-#employee-panel .inspector { border:0; padding:20px 0; }
-#employee-panel .task-board { grid-template-columns:1fr; }
 #employee-panel .office-roster { grid-template-columns:repeat(2,minmax(0,1fr)); }
 #employee-panel .office-terminal { margin-top:16px; }
 #goal-dialog .goal-composer { margin:0; border:0; padding:22px; }

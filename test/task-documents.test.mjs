@@ -9,7 +9,7 @@ import { documentText, parseDocument, handoffSections } from '../lib/task-docume
 import { organizeContext } from '../lib/context.mjs';
 import { Orchestrator } from '../lib/orchestrator.mjs';
 import { createApp } from '../lib/app.mjs';
-import { taskDocumentLinks } from '../public/task-documents.js';
+import { taskDocumentLinks, taskDocumentUrl } from '../public/task-documents.js';
 
 // fixture 创建两个前后衔接的员工分工，实际文件位于测试专属目录。
 function fixture(t) {
@@ -95,6 +95,8 @@ test('文档端点可查看固定文件并拒绝跨目标、路径穿越', async
   assert.equal((await fetch(`${base}?file=../../goalhub.sqlite`)).status, 400);
   assert.equal((await fetch(`${base}?assignmentId=not-this-task`)).status, 404);
   assert.match(taskDocumentLinks(f.store.detail(f.project.id), task), /assignmentId=/);
+  const planUrl = taskDocumentUrl(f.store.detail(f.project.id), task, 'plan.md');
+  assert.match(await (await fetch(`http://127.0.0.1:${app.address().port}${planUrl}`)).text(), /# Plan/);
 });
 
 test('写入日志在重启后重放，保留固定格式和代码块内的标题', t => {

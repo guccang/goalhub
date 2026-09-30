@@ -1,5 +1,6 @@
 // 本文件连接像素办公室、真实角色日志与项目控制；所有写入都使用 GoalHub 的同源 API。
-import { renderEmployeeWork } from './work-progress.js';
+import { currentEmployeeTask, renderEmployeeWork } from './work-progress.js';
+import { taskDocumentUrl } from './task-documents.js';
 import { OfficeScene } from './office-scene.js';
 import { paintPortrait } from './vendor/munder-difflin/portrait-art.js';
 
@@ -89,6 +90,7 @@ export class OfficeView {
     const progress = project.office.progress;
     this.find('#office-progress').textContent = project.queue ? `推进目标 ${project.queue.running}/${project.queue.capacity} · 工作员工 ${new Set((project.queue.assignments || []).filter(item => !item.waiting).map(item => item.employeeId)).size} · 排队 ${project.queue.waiting.length}${project.queue.awaitingApproval?.length ? ` · 待确认 ${project.queue.awaitingApproval.length}` : ''} · 任务 ${progress.done}/${progress.total}` : `任务 ${progress.done}/${progress.total} · 测试 ${progress.passed}/${progress.checks} 通过`;
     this.renderRoster(); this.renderActor(); this.renderControls(); this.renderHistory();
+    if (this.find('#employee-panel').open) this.loadPlan();
   }
 
   // select 选择角色，画布与键盘角色列表使用同一选择状态。
@@ -99,6 +101,7 @@ export class OfficeView {
     const expand = this.find('[data-office-camera=expand]'); expand.textContent = '展开'; expand.setAttribute('aria-label', '展开办公室');
     this.selected = role; this.outputKey = null; this.workContent = null; this.find('#employee-work').innerHTML = '';
     this.scene?.select(role); this.renderRoster(); this.renderActor();
+    this.loadPlan();
     this.onSelect?.(this.snapshot.actors.find(actor => actor.id === role));
   }
 
@@ -142,10 +145,10 @@ export class OfficeView {
     }
   }
 
-  // renderEmployeeWork 普通员工展示分配任务及对应验收，负责人集中提供项目档案。
+  // renderEmployeeWork 所有员工使用同一分工计划视图。
   renderEmployeeWork(actor) {
     const target = this.find('#employee-work');
-    const content = renderEmployeeWork(this.project, actor);
+    const content = renderEmployeeWork(this.project, actor, this.planState);
     if (this.workContent !== content) {
       const opened = new Set([...target.querySelectorAll('details[open]')].map(item => item.dataset.workDetail));
       const closed = new Set([...target.querySelectorAll('details:not([open])')].map(item => item.dataset.workDetail));
@@ -155,6 +158,29 @@ export class OfficeView {
         else if (closed.has(item.dataset.workDetail)) item.open = false;
       }
     }
+  }
+
+  // loadPlan 每次同步都重新读取当前分工文档，使磁盘上的计划修改能直接更新页面。
+  async loadPlan() {
+    const project = this.project, actor = this.snapshot?.actors.find(item => item.id === this.selected);
+    const task = actor && currentEmployeeTask(project, actor);
+    const sequence = this.planSequence = (this.planSequence || 0) + 1;
+    if (!task?.documents) { this.planState = {}; this.renderEmployeeWork(actor); return; }
+    if (this.planState?.taskId !== task.id || this.planState?.goalId !== project.viewed_goal_id) {
+      this.planState = { taskId: task.id, goalId: project.viewed_goal_id };
+      this.renderEmployeeWork(actor);
+    }
+    try {
+      const response = await fetch(taskDocumentUrl(project, task, 'plan.md'), { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = await response.text();
+      if (sequence !== this.planSequence) return;
+      this.planState = { taskId: task.id, goalId: project.viewed_goal_id, text };
+    } catch (error) {
+      if (sequence !== this.planSequence) return;
+      this.planState = { taskId: task.id, goalId: project.viewed_goal_id, error: error.message };
+    }
+    this.renderEmployeeWork(actor);
   }
 
   // renderControls 按项目状态和网络状态启用可执行操作。
