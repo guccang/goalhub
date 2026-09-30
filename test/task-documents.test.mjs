@@ -53,6 +53,18 @@ test('文件勾选与员工交接不会把平台任务或验收状态改成完�
   assert.match(readFileSync(task.documents.handoff, 'utf8'), /员工自述完成/);
 });
 
+test('新分工计划包含主管已规划的工作与验收项，保留员工自行修改的计划', t => {
+  const f = fixture(t), task = f.store.tasks(f.project.id)[0];
+  const initial = readFileSync(task.documents.plan, 'utf8');
+  assert.match(initial, /设计资源映射/);
+  assert.match(initial, /运行验证/);
+  assert.match(initial, /node verify\.mjs/);
+  assert.doesNotMatch(initial, /完成本次分工|验证本次分工/);
+  writeFileSync(task.documents.plan, '# Plan\n\n- [x] 员工自行细化\n');
+  f.store.publishTaskDocuments(f.project.id);
+  assert.match(readFileSync(task.documents.plan, 'utf8'), /员工自行细化/);
+});
+
 test('文档缺失明确失败，重启不悄悄从 SQLite 恢复旧正文', t => {
   const f = fixture(t), task = f.store.tasks(f.project.id)[0]; unlinkSync(task.documents.handoff);
   f.reopen(); assert.throws(() => f.store.tasks(f.project.id), /ENOENT/);
@@ -96,7 +108,25 @@ test('文档端点可查看固定文件并拒绝跨目标、路径穿越', async
   assert.equal((await fetch(`${base}?assignmentId=not-this-task`)).status, 404);
   assert.match(taskDocumentLinks(f.store.detail(f.project.id), task), /assignmentId=/);
   const planUrl = taskDocumentUrl(f.store.detail(f.project.id), task, 'plan.md');
-  assert.match(await (await fetch(`http://127.0.0.1:${app.address().port}${planUrl}`)).text(), /# Plan/);
+  assert.match(await (await fetch(`http://127.0.0.1:${app.address().port}${planUrl}`)).text(), /设计资源映射/);
+  const nextTask = f.store.tasks(f.project.id)[1];
+  writeFileSync(nextTask.documents.plan, '# Plan\n\n- [ ] 完成本次分工\n- [ ] 验证本次分工\n');
+  const fallbackUrl = taskDocumentUrl(f.store.detail(f.project.id), nextTask, 'plan.md');
+  const fallback = await (await fetch(`http://127.0.0.1:${app.address().port}${fallbackUrl}`)).text();
+  assert.match(fallback, /按前置设计实现/);
+  assert.doesNotMatch(fallback, /完成本次分工/);
+  writeFileSync(task.documents.plan, '# Plan\n\n- [ ] 完成本次分工\n- [ ] 验证本次分工\n');
+  const run = f.store.beginRun(f.project.id, 'developer', '输入', { id: task.assignee, configKey: 'test' });
+  f.store.db.prepare('UPDATE runs SET task_id=?,task_version=?,plan_steps=? WHERE id=?')
+    .run(task.id, task.version, JSON.stringify([{ text: '落实资源映射接口', completed: true }, { text: '验证资源加载', completed: false }]), run);
+  const placeholderRun = f.store.beginRun(f.project.id, 'developer', '旧占位同步', { id: task.assignee, configKey: 'test' });
+  f.store.db.prepare('UPDATE runs SET task_id=?,task_version=?,plan_steps=? WHERE id=?')
+    .run(task.id, task.version, JSON.stringify([{ text: '完成本次分工', completed: false }, { text: '验证本次分工', completed: false }]), placeholderRun);
+  const migrated = await (await fetch(`http://127.0.0.1:${app.address().port}${planUrl}`)).text();
+  assert.match(migrated, /落实资源映射接口/);
+  assert.match(migrated, /验证资源加载/);
+  assert.doesNotMatch(migrated, /完成本次分工/);
+  assert.equal(readFileSync(task.documents.plan, 'utf8'), migrated);
 });
 
 test('写入日志在重启后重放，保留固定格式和代码块内的标题', t => {
