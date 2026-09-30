@@ -282,7 +282,8 @@ test('调用确认按操作选择阶段，交付预览不保存配置或创建�
   const planning = await f.request(path, { action: 'start' });
   assert.equal(planning.value.entries.length, 1); assert.match(planning.value.entries[0].input, /你是规划 Agent/);
   const evaluating = await f.request(path, { action: 'evaluate' });
-  assert.match(evaluating.value.entries[0].input, /定时进度/);
+  assert.equal(evaluating.value.entries[0].title, '立即项目进度评估');
+  assert.match(evaluating.value.entries[0].input, /手动立即进度检查/);
   const config = { kind: 'source', instructions: '保存的说明' }; f.store.saveDelivery(id, config);
   const delivery = await f.request(path, { action: 'delivery/build' });
   assert.equal(delivery.value.entries.length, 1); assert.match(delivery.value.entries[0].input, /准备可使用的项目预览与交付/);

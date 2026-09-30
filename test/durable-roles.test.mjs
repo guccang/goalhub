@@ -51,7 +51,11 @@ test('所有员工阶段先制定至少两项个人 TODO 并独立验证目标',
   for (const role of ['planner', 'coordinator', 'developer', 'evaluator', 'final-review']) {
     const employee = assignEmployee(null, value, role, 'planner');
     const input = employeePrompt(phasePrompt(role, { context: JSON.stringify({ goal: value.goal, employees: [] }), task: { title: '实现数独' } }), employee, value);
-    for (const rule of ['先制定并上报个人 TODO 执行计划，再开始实际执行', '至少有两项独立 TODO', '1. 完成目标', '2. 测试目标', '复杂任务必须按依赖和可验证的阶段继续拆解', '实际完成后才标记完成', '验证失败或受阻时保留未完成状态', '结束本轮前更新计划', '必须遵守当前角色权限', '最终回复必须是单个 JSON 对象']) {
+    // 只读评估用简短的双目标计划约束，执行阶段继续遵守完整计划协议。
+    const rules = ['evaluator', 'final-review'].includes(role)
+      ? ['plan.md', '判断进度', '核验证据', '只读检查', '最终只返回单个 JSON 对象']
+      : ['先制定并上报个人 TODO 执行计划，再开始实际执行', '至少有两项独立 TODO', '1. 完成目标', '2. 测试目标', '复杂任务必须按依赖和可验证的阶段继续拆解', '实际完成后才标记完成', '验证失败或受阻时保留未完成状态', '结束本轮前更新计划', '必须遵守当前角色权限', '最终回复必须是单个 JSON 对象'];
+    for (const rule of rules) {
       assert.ok(input.includes(rule), role + ' 缺少规则：' + rule);
     }
     assert.doesNotMatch(input, /commentary 或工作计划事件/);

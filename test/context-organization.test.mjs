@@ -97,6 +97,27 @@ test('修复意见通过真实验收后归档，不继续成为后续任务指�
   assert.equal(f.store.instructions(id)[0].content, '修复旧路径');
 });
 
+// 手动评估先定位真实运行分工，并保持命令验收规则可供修复时引用。
+test('立即评估区分触发方式并压缩重复任务详情', t => {
+  const f = fixture(t), id = f.project.id, task = f.store.tasks(id)[0];
+  f.store.db.prepare('UPDATE tasks SET status=? WHERE id=?').run('running', task.id);
+  const context = JSON.parse(f.orchestrator.context(id));
+  const work = organizeContext(context, 'evaluator').work;
+  assert.equal(work.evaluation.scope, '当前目标整体进度');
+  assert.equal(work.evaluation.activeAssignments[0].assignee, 'developer');
+  assert.equal(work.tasks[0].spec, undefined);
+  assert.equal(work.tasks[0].done_when, undefined);
+  assert.equal(work.checks[0].command, undefined);
+  assert.equal(work.acceptance.checks[0].command, 'node verify.mjs');
+  const manual = phasePrompt('evaluator', { context: JSON.stringify(context), trigger: 'manual' });
+  const scheduled = phasePrompt('evaluator', { context: JSON.stringify(context) });
+  assert.match(manual, /手动立即进度检查/);
+  assert.match(manual, /运行中的检查尚无结果时返回 continue/);
+  assert.match(scheduled, /定时进度检查/);
+  assert.doesNotMatch(manual, /所有员工、所有阶段必需/);
+  assert.doesNotMatch(manual, /"spec":/);
+});
+
 for (const scheduled of [false, true]) test(`${scheduled ? '队列' : '串行'}恢复流程仅需求变更触发重新规划`, async t => {
   const f = fixture(t), id = f.project.id;
   const engine = scheduled ? new GoalScheduler({ store: f.store, git: {}, runtime: {} }) : f.orchestrator;
