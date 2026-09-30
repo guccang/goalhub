@@ -40,7 +40,7 @@ const homeCards = new Map();
 let selected = localStorage.getItem('goalhub.project') || '', project = null, projects = [], tab = 'tasks', busy = false, refreshInFlight = false;
 let events = [], search = '', kind = '', questionsKey = '', toastTimer, eventProject = '', historyMode = false;
 const markupCache = new WeakMap();
-let recordsOwner = null, hasLoadedProjects = false;
+let hasLoadedProjects = false;
 const office = new OfficeView({ onAction: action, onError: toast,
   onManage: () => employees.open(selected),
   onSelect: showEmployeeRecords,
@@ -58,14 +58,10 @@ const god = new GodPanel({ api, toast });
 const employees = new EmployeeManager({ api, refresh, toast });
 const confirmModelRequest = installPromptPreviews({ api, setup });
 
-// showEmployeeRecords 仅通过负责人打开项目档案，普通员工保留个人信息。
+// showEmployeeRecords 所有员工都打开相同的当前分工视图。
 function showEmployeeRecords(actor) {
-  recordsOwner = actor;
   $('#employee-panel-title').textContent = `${actor.name} · ${actor.isLead ? '项目负责人' : '员工详情'}`;
   openPanel('employee-panel');
-  $('#leader-records').hidden = !actor.isLead;
-  $('#leader-records-title').textContent = `${actor.name} · 项目全部记录`;
-  if (actor.isLead && tab === 'activity') loadEvents().catch(error => toast(error.message));
 }
 
 // openPanel 使用独立滚动的原生对话框，不改变主页面长度。
@@ -243,8 +239,6 @@ function renderProject() {
   panels.render(project); setup.syncProject(project); deliveryPanel.render(project);
   office.update(project, busy || !!project.historical || !project.active_goal_id); office.setVisible(!homeVisible);
   $('#office-view').hidden = false;
-  if (recordsOwner) recordsOwner = project.office?.actors.find(actor => actor.id === recordsOwner.id) || null;
-  $('#leader-records').hidden = !recordsOwner?.isLead;
   $('#project-title').textContent = project.name; document.title = homeVisible ? '办公室总览 · GoalHub' : `${project.name} · GoalHub`;
   html('#project-status', badge(project.status)); $('#project-created').textContent = `创建于 ${date(project.created_at, true)}`;
   html('#project-actions', project.historical || !project.active_goal_id ? '' : project.active ? '<button class="secondary" data-action="pause">暂停执行</button>' : project.status === 'queued' ? '<button class="secondary" data-action="pause">暂停排队</button>' : project.status === 'completed' ? '<span class="badge completed">✓ 已通过验收</span>' : ['blocked', 'waiting_input', 'awaiting_approval'].includes(project.status) ? `<button class="primary" data-action="attention">${project.status === 'blocked' ? '查看团队状态' : project.status === 'waiting_input' ? '回答问题' : '确认计划'}</button>` : '<button class="primary" data-action="start">继续执行</button>');
@@ -376,7 +370,7 @@ async function refresh() {
     if (selected) {
       const id = selected, goal = selectedGoal, detail = await api(selectedGoal ? `/projects/${id}/goals/${selectedGoal}` : `/projects/${id}`);
       if (id !== selected || goal !== selectedGoal) return;
-      // 历史档案仍从当前办公室员工进入，历史执行操作保持禁用。
+      // 历史目标沿用当前办公室角色，项目记录仍在项目层级展示。
       if (detail.historical) detail.office = (await api(`/projects/${id}/office`));
       if (id !== selected || goal !== selectedGoal) return;
       project = detail; renderProject();
@@ -393,7 +387,6 @@ async function refresh() {
 // selectProject 清理上一个项目的筛选和表单状态。
 async function selectProject(id) {
   homeVisible = false; renderHome();
-  recordsOwner = null;
   for (const id of ['sidebar', 'employee-panel', 'goal-dialog', 'usage-dialog', 'attention-dialog', 'delivery-summary-dialog', 'delivery-dialog']) closePanel(id);
   selectedGoal = ''; selected = id; localStorage.setItem('goalhub.project', id); questionsKey = ''; historyMode = false; events = []; search = ''; kind = '';
   $('#log-search').reset();

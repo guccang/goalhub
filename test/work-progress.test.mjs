@@ -1,7 +1,7 @@
 // 本文件验证员工进展的证据边界、输入交接与目标隔离，避免日志冒充验收结果。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { progressEvents, inputContext, renderEmployeeWork, renderProgress } from '../public/work-progress.js';
+import { progressEvents, inputContext, currentEmployeeTask, renderEmployeeWork, renderProgress } from '../public/work-progress.js';
 import { organizeContext } from '../lib/context.mjs';
 import { Store } from '../lib/store.mjs';
 import { createApp } from '../lib/app.mjs';
@@ -27,14 +27,19 @@ test('实际输入概览来自记录，不混入提示词中的其他文字', ()
   assert.deepEqual(inputContext('旧格式'), {});
 });
 
-test('员工面板区分任务完成和自报进展，转义内容并隔离其他目标的运行', () => {
-  const actor = { id: 'jim', run: { id: 'run' }, events: [{ kind: 'agent.output', content: '<script>已做</script>' }], context: { work: { task: { title: '本轮战斗' } } } };
-  const project = { goal: '游戏', tasks: [{ id: 'one', title: '战斗', assignee: 'jim', status: 'running', check_ids: ['check'] }, { id: 'two', title: '存档', assignee: 'jim', status: 'pending', depends_on: ['one'] }], checks: [{ id: 'check', title: '受击', expectation: '生命减少', command: 'node test.mjs', status: 'pending' }], runs: [{ id: 'run', employee_id: 'jim', status: 'running' }] };
-  const html = renderEmployeeWork(project, actor);
-  for (const text of ['目标是什么', '正在做什么', '计划与剩余任务', '已经做了什么', '上下文有哪些', '尚未上报执行计划']) assert.ok(html.includes(text));
-  assert.ok(html.includes('&lt;script&gt;')); assert.ok(!html.includes('<script>'));
-  assert.match(html, /暂无已通过验收的任务/);
-  assert.doesNotMatch(renderEmployeeWork({ ...project, runs: [] }, actor), /本轮战斗|&lt;script&gt;/);
+test('员工面板显示当前分工 plan.md 与上下文文档，不显示项目总目标', () => {
+  const task = { id: 'one', assignmentId: 'one', title: '实现战斗', description: '处理受击', assignee: 'jim', status: 'running', documents: {} };
+  const project = { id: 'project', goal: '整个游戏', viewed_goal_id: 'goal', taskDocuments: {}, tasks: [task,
+    { id: 'two', title: '实现存档', assignee: 'kelly', status: 'running', documents: {} }], runs: [] };
+  const actor = { id: 'jim' };
+  const html = renderEmployeeWork(project, actor, { taskId: 'one', text: '# Plan\n- [ ] <检查资源>' });
+  assert.match(html, /实现战斗/);
+  assert.match(html, /<h4>Plan<\/h4>/);
+  assert.match(html, /&lt;检查资源&gt;/);
+  assert.match(html, /assignment.md|requirements.md|sources.md/);
+  assert.doesNotMatch(html, /整个游戏|实现存档|<检查资源>/);
+  assert.equal(currentEmployeeTask(project, { id: 'lead', isLead: true }).id, 'one');
+  assert.match(renderEmployeeWork(project, { id: 'test' }), /当前没有正在执行的分工/);
 });
 
 test('前置任务的完成结果是当前执行输入，无关已完成任务不注入', () => {
@@ -73,21 +78,14 @@ test('执行记录 API 返回运行中的流事件，静态进展模块可加载
 });
 
 
-// 验证个人计划使用最新员工上报，隔离主管分工及其他轮次。
-test('员工计划只展示本轮最新个人步骤，不展示项目分工', () => {
-  const events = [
-    { kind: 'agent.item.completed', content: JSON.stringify({ item: { type: 'todo_list', items: [{ text: '旧步骤', completed: false }] } }) },
-    { kind: 'agent.item.completed', content: JSON.stringify({ item: { type: 'todo_list', items: [{ text: '<检查资源>', completed: true }, { text: '调整界面', completed: false }] } }) },
-  ];
-  const actor = { id: 'kelly', run: { id: 'run' }, progress: progressEvents(events) };
-  const project = { tasks: [{ id: 'a', assignee: 'kelly', title: '主管分配的大任务', status: 'pending' }, { id: 'b', assignee: 'jim', title: '其他员工任务', status: 'pending' }], runs: [{ id: 'run' }] };
-  const html = renderEmployeeWork(project, actor);
-  assert.ok(html.includes('已完成 1 / 2 项，剩余 1 项'));
-  assert.match(html, /&lt;检查资源&gt;/);
-  assert.match(html, /调整界面/);
-  assert.doesNotMatch(html.split('<h3>计划与剩余任务</h3>')[1].split('</section>')[0], /旧步骤/);
-  assert.doesNotMatch(html, /主管分配的大任务|其他员工任务|项目完整计划与分工|项目共/);
-  assert.match(renderEmployeeWork({ ...project, runs: [] }, actor), /尚未上报执行计划/);
-  const cleared = progressEvents([...events, { kind: 'agent.item.completed', content: JSON.stringify({ item: { type: 'todo_list', items: [] } }) }]);
-  assert.match(renderEmployeeWork(project, { ...actor, progress: cleared }), /尚未上报执行计划/);
+// 验证计划正文只取当前分工，旧轮次的任务计划不混入页面。
+test('员工执行计划以当前分工文档为准', () => {
+  const tasks = [{ id: 'old', assignee: 'kelly', title: '旧任务', status: 'done' },
+    { id: 'current', assignee: 'kelly', title: '当前任务', status: 'running', documents: {} }];
+  const project = { id: 'project', viewed_goal_id: 'goal', tasks, runs: [] };
+  const actor = { id: 'kelly' };
+  assert.equal(currentEmployeeTask(project, actor).id, 'current');
+  assert.match(renderEmployeeWork(project, actor, { taskId: 'old', text: '旧步骤' }), /正在读取当前分工/);
+  assert.doesNotMatch(renderEmployeeWork(project, actor, { taskId: 'old', text: '旧步骤' }), /旧步骤/);
+  assert.match(renderEmployeeWork(project, actor, { taskId: 'current', text: '- [x] 完成新步骤' }), /完成新步骤/);
 });
